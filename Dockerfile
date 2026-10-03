@@ -20,8 +20,9 @@ RUN dotnet publish "QueueManagement.Api.csproj" -c Release -o /app/publish /p:Us
 # Stage 2: Final Production Runtime Image
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
-EXPOSE 8080
-ENV ASPNETCORE_URLS=http://+:8080
+# ASPNETCORE_URLS is intentionally omitted here so the PORT env var
+# injected by Render (or similar platforms) takes effect via Program.cs.
+# A default of 8080 is only used if PORT is also unset.
 ENV ASPNETCORE_ENVIRONMENT=Production
 
 COPY --from=build /app/publish .

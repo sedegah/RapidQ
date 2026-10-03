@@ -6,36 +6,98 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RapidQ - Smart Queue Management</title>
     <base href="/" />
-    <link rel="preload" id="webassembly" />
     <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="QueueManagement.Client.styles.css" rel="stylesheet" />
     <script type="importmap"></script>
+    <style>
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        #boot-error {
+            display: none;
+            margin-top: 1.2rem;
+            padding: 0.85rem 1rem;
+            background: rgba(199,93,93,0.15);
+            border: 1px solid rgba(199,93,93,0.5);
+            border-radius: 0;
+            color: #ffc7c7;
+            font-size: 0.88rem;
+            line-height: 1.55;
+            text-align: left;
+            max-width: 380px;
+        }
+        #boot-error kbd {
+            background: #223548;
+            border: 1px solid #2d3d4d;
+            padding: 0.1rem 0.35rem;
+            border-radius: 3px;
+            font-size: 0.82rem;
+            color: #dfeaf8;
+        }
+    </style>
 </head>
 
 <body>
     <div id="app">
-        <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0d141b; color: #edf4ff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-            <div style="text-align: center; max-width: 400px; padding: 2rem;">
-                <div style="width: 42px; height: 42px; border: 3px solid #2d3d4d; border-top-color: #58a6ff; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 1.25rem;"></div>
-                <h3 style="margin: 0 0 0.5rem; font-weight: 700; color: #edf4ff; letter-spacing: -0.02em;">RapidQ</h3>
-                <p style="margin: 0; color: #a9bbce; font-size: 0.95rem;">Initializing Queue Management System...</p>
+        <div id="blazor-loader" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d141b;color:#edf4ff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+            <div style="text-align:center;max-width:420px;padding:2rem;">
+                <div id="loader-spinner" style="width:42px;height:42px;border:3px solid #2d3d4d;border-top-color:#58a6ff;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 1.25rem;"></div>
+                <h3 style="margin:0 0 0.5rem;font-weight:700;color:#edf4ff;letter-spacing:-0.02em;">RapidQ</h3>
+                <p style="margin:0;color:#a9bbce;font-size:0.95rem;">Initializing Queue Management System...</p>
+                <div id="boot-error">
+                    <strong style="color:#ffa0a0;">Failed to load the application.</strong><br/>
+                    This is usually a temporary issue. Please try:<br/>
+                    &bull; Hard refresh: <kbd>Ctrl+Shift+R</kbd> or <kbd>&#8984;+Shift+R</kbd><br/>
+                    &bull; Clearing your browser cache<br/>
+                    &bull; <a href="/" style="color:#58a6ff;">Click here to reload</a>
+                </div>
             </div>
         </div>
-        <style>
-            @keyframes spin {
-                to { transform: rotate(360deg); }
-            }
-        </style>
     </div>
 
-    <div id="blazor-error-ui" style="display: none; background: #c75d5d; color: white; padding: 1rem; position: fixed; bottom: 0; left: 0; right: 0; z-index: 99999; text-align: center;">
+    <div id="blazor-error-ui" style="display:none;background:#c75d5d;color:white;padding:1rem;position:fixed;bottom:0;left:0;right:0;z-index:99999;text-align:center;">
         An unhandled error has occurred.
-        <a href="" class="reload" style="color: white; font-weight: bold; margin-left: 1rem; text-decoration: underline;">Reload</a>
+        <a href="" class="reload" style="color:white;font-weight:bold;margin-left:1rem;text-decoration:underline;">Reload</a>
     </div>
 
-    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+    <script>
+        // Show an error if Blazor hasn't finished booting within 30 seconds
+        var _bootTimer = setTimeout(function () {
+            var loader = document.getElementById('blazor-loader');
+            if (loader) {
+                var spinner = document.getElementById('loader-spinner');
+                var errEl = document.getElementById('boot-error');
+                if (spinner) spinner.style.display = 'none';
+                if (errEl) errEl.style.display = 'block';
+            }
+        }, 30000);
+
+        // Dismiss the loader once Blazor replaces the #app div
+        var _appEl = document.getElementById('app');
+        if (_appEl) {
+            var _obs = new MutationObserver(function () {
+                if (!document.getElementById('blazor-loader')) {
+                    clearTimeout(_bootTimer);
+                    _obs.disconnect();
+                }
+            });
+            _obs.observe(_appEl, { childList: true, subtree: true });
+        }
+    </script>
+
+    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
+    <script>
+        Blazor.start({}).catch(function (err) {
+            console.error('Blazor boot failed:', err);
+            clearTimeout(_bootTimer);
+            var spinner = document.getElementById('loader-spinner');
+            var errEl = document.getElementById('boot-error');
+            if (spinner) spinner.style.display = 'none';
+            if (errEl) errEl.style.display = 'block';
+        });
+    </script>
 </body>
 
 </html>

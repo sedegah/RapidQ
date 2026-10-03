@@ -27,11 +27,10 @@ static string GenerateQueueCode(int queueNumber, string serviceCode)
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Render injects PORT; fall back to 8080 for other container environments.
 var portEnv = Environment.GetEnvironmentVariable("PORT");
-if (!string.IsNullOrWhiteSpace(portEnv))
-{
-    builder.WebHost.UseUrls($"http://0.0.0.0:{portEnv}");
-}
+var listenPort = !string.IsNullOrWhiteSpace(portEnv) ? portEnv : "8080";
+builder.WebHost.UseUrls($"http://0.0.0.0:{listenPort}");
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 var dbPath = !string.IsNullOrWhiteSpace(connectionString)
