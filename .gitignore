@@ -32,3 +32,10 @@ appsettings.Development.json
 # Generated static assets
 wwwroot/lib/
 command.md
+
+# Publish test output
+client-publish-test/
+
+# SQLite WAL files
+*.db-shm
+*.db-wal
