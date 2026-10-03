@@ -63,7 +63,7 @@
     </div>
 
     <script>
-        // Show an error if Blazor hasn't finished booting within 30 seconds
+        // Show an actionable error if Blazor hasn't booted within 30s
         var _bootTimer = setTimeout(function () {
             var loader = document.getElementById('blazor-loader');
             if (loader) {
@@ -74,7 +74,7 @@
             }
         }, 30000);
 
-        // Dismiss the loader once Blazor replaces the #app div
+        // Clear the timer once Blazor replaces the #app div
         var _appEl = document.getElementById('app');
         if (_appEl) {
             var _obs = new MutationObserver(function () {
@@ -87,7 +87,11 @@
         }
     </script>
 
-    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
+    <!--
+        IMPORTANT: The #[.{fingerprint}] placeholder is replaced at publish time by dotnet.
+        Do NOT change this to blazor.webassembly.js — the published file has a hash suffix.
+    -->
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js" autostart="false"></script>
     <script>
         Blazor.start({}).catch(function (err) {
             console.error('Blazor boot failed:', err);
