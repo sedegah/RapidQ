@@ -180,7 +180,7 @@
         try
         {
             services.Clear();
-            var loadedServices = await Http.GetFromJsonAsync<List<ServiceItem>>("https://localhost:7041/client/services") ?? new();
+            var loadedServices = await Http.GetFromJsonAsync<List<ServiceItem>>("http://localhost:5187/client/services") ?? new();
             services.AddRange(loadedServices);
         }
         catch
@@ -193,7 +193,7 @@
     {
         try
         {
-            var summary = await Http.GetFromJsonAsync<DashboardSummary>("https://localhost:7041/staff/dashboard") ?? new DashboardSummary();
+            var summary = await Http.GetFromJsonAsync<DashboardSummary>("http://localhost:5187/staff/dashboard") ?? new DashboardSummary();
             nextAvailableWindow = summary.ActiveQueue switch
             {
                 0 => "Now",
@@ -252,7 +252,7 @@
         try
         {
             model.BranchId = 1;
-            var response = await Http.PostAsJsonAsync("https://localhost:7041/client/tickets", model);
+            var response = await Http.PostAsJsonAsync("http://localhost:5187/client/tickets", model);
 
             if (response.IsSuccessStatusCode)
             {

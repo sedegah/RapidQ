@@ -107,7 +107,7 @@
         await LoadDataAsync();
 
         hubConnection = new HubConnectionBuilder()
-            .WithUrl("https://localhost:7041/queueHub")
+            .WithUrl("http://localhost:5187/queueHub")
             .WithAutomaticReconnect()
             .Build();
 
@@ -131,7 +131,7 @@
     {
         try
         {
-            var response = await Http.GetAsync($"https://localhost:7041/client/track/{QueueCode}");
+            var response = await Http.GetAsync($"http://localhost:5187/client/track/{QueueCode}");
             
             if (response.IsSuccessStatusCode)
             {
