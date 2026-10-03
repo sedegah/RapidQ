@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\QueueManagement.Shared\QueueManagement.Shared.csproj" />
+    <ProjectReference Include="..\shared\QueueManagement.Shared.csproj" />
   </ItemGroup>
 
 </Project>

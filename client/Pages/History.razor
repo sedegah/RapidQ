@@ -1,6 +1,7 @@
 @page "/history"
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 
 <PageTitle>Transaction History</PageTitle>
 
@@ -97,6 +98,13 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var token = await LocalStorage.GetItemAsync<string>("authToken");
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            Navigation.NavigateTo("/", replace: true);
+            return;
+        }
+
         try
         {
             history = await Http.GetFromJsonAsync<List<AppointmentHistoryItem>>("http://localhost:5187/staff/history") ?? new();

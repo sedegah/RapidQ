@@ -20,7 +20,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\QueueManagement.Api\QueueManagement.Api.csproj" />
+    <ProjectReference Include="..\api\QueueManagement.Api.csproj" />
+    <ProjectReference Include="..\shared\QueueManagement.Shared.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,55 @@
+@using QueueManagement.Client.Auth
+@inject NavigationManager Navigation
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject AuthenticationStateProvider AuthStateProvider
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/staff">RapidQ Desk</a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3 mb-1">
+            <NavLink class="nav-link" href="staff">
+                Service Desk
+            </NavLink>
+        </div>
+        <div class="nav-item px-3 mb-1">
+            <NavLink class="nav-link" href="history">
+                History
+            </NavLink>
+        </div>
+        <div class="nav-item px-3 mb-1">
+            <NavLink class="nav-link" href="admin">
+                Admin Panel
+            </NavLink>
+        </div>
+        <div class="nav-item px-3 mt-4">
+            <button type="button" class="nav-link text-warning bg-transparent border-0 text-start w-100 cursor-pointer" @onclick="HandleSignOut">
+                Sign Out
+            </button>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+    private async Task HandleSignOut()
+    {
+        await LocalStorage.RemoveItemAsync("authToken");
+        ((JwtAuthenticationStateProvider)AuthStateProvider).MarkUserAsLoggedOut();
+        Navigation.NavigateTo("/");
+    }
+}
