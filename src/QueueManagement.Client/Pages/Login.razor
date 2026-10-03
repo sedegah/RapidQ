@@ -1,0 +1,56 @@
+@page "/login"
+@using QueueManagement.Client.Auth
+@using QueueManagement.Shared
+@inject HttpClient Http
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Login</PageTitle>
+
+<div class="container mt-5" style="max-width: 400px;">
+    <h3 class="mb-4">Staff / Admin Login</h3>
+
+    @if (!string.IsNullOrEmpty(error))
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+
+    <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
+        <div class="form-group mb-3">
+            <label>Email</label>
+            <InputText @bind-Value="loginModel.Email" class="form-control" />
+        </div>
+        <div class="form-group mb-3">
+            <label>Password</label>
+            <InputText @bind-Value="loginModel.Password" type="password" class="form-control" />
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Log in</button>
+    </EditForm>
+</div>
+
+@code {
+    private LoginRequest loginModel = new();
+    private string error = string.Empty;
+
+    private async Task HandleLogin()
+    {
+        error = string.Empty;
+        var response = await Http.PostAsJsonAsync("https://localhost:7041/auth/login", loginModel);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
+            if (result != null)
+            {
+                await LocalStorage.SetItemAsync("authToken", result.Token);
+                ((JwtAuthenticationStateProvider)AuthStateProvider).MarkUserAsAuthenticated(result.Email);
+                NavigationManager.NavigateTo("/");
+            }
+        }
+        else
+        {
+            error = "Invalid login attempt. Please check your credentials.";
+        }
+    }
+}

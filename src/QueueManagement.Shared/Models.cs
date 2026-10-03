@@ -100,3 +100,44 @@ public class AppointmentHistoryItem
     public int? ServiceDurationMinutes { get; set; }
     public AppointmentStatus Status { get; set; }
 }
+
+public class LoginRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+}
+
+public class RegisterRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+    public string Role { get; set; } = "Customer";
+}
+
+public class AuthResponse
+{
+    public string Token { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public IList<string> Roles { get; set; } = new List<string>();
+}
+
+public class ServiceDistributionItem
+{
+    public string ServiceName { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
+public class AdminAnalyticsResponse
+{
+    public DashboardSummary Summary { get; set; } = new();
+    public List<ServiceDistributionItem> ServiceDistribution { get; set; } = new();
+}
+
+public class TrackResponse
+{
+    public string QueueCode { get; set; } = string.Empty;
+    public AppointmentStatus Status { get; set; }
+    public string ServiceName { get; set; } = string.Empty;
+    public DateTime ExpectedTime { get; set; }
+    public int PeopleAhead { get; set; }
+}

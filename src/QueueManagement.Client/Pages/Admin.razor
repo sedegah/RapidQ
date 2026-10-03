@@ -1,63 +1,241 @@
 @page "/admin"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
 @inject HttpClient Http
 
-<PageTitle>Branch Analytics</PageTitle>
+<PageTitle>Branch Analytics & Configuration</PageTitle>
 
 <div class="page-header">
     <div>
-        <p class="eyebrow">Branch overview</p>
-        <h3>Queue performance</h3>
+        <p class="eyebrow">Admin Dashboard</p>
+        <h3>Queue Performance & Settings</h3>
     </div>
 </div>
 
-@if (summary is null)
+<ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+        <a class="nav-link @(currentTab == "analytics" ? "active" : "")" @onclick='() => SetTab("analytics")' style="cursor:pointer">Analytics</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link @(currentTab == "services" ? "active" : "")" @onclick='() => SetTab("services")' style="cursor:pointer">Services</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link @(currentTab == "branches" ? "active" : "")" @onclick='() => SetTab("branches")' style="cursor:pointer">Branches</a>
+    </li>
+</ul>
+
+@if (currentTab == "analytics")
 {
-    <div class="empty-panel">
-        <p>Loading branch metrics...</p>
+    @if (analytics is null)
+    {
+        <div class="empty-panel">
+            <p>Loading admin metrics...</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="metric-card metric-blue">
+                    <span>Total tickets</span>
+                    <strong>@analytics.Summary.TotalAppointments</strong>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card metric-green">
+                    <span>Active queue</span>
+                    <strong>@analytics.Summary.ActiveQueue</strong>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card metric-orange">
+                    <span>Average wait</span>
+                    <strong>@analytics.Summary.AverageWaitMinutes min</strong>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card metric-slate">
+                    <span>Service lines</span>
+                    <strong>@analytics.Summary.ServicesAvailable</strong>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5 class="card-title">Service Distribution</h5>
+                <ul class="list-group mt-3">
+                    @foreach (var item in analytics.ServiceDistribution)
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            @item.ServiceName
+                            <span class="badge bg-primary rounded-pill">@item.Count</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    }
+}
+else if (currentTab == "services")
+{
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">Services Configuration</h5>
+            
+            <form @onsubmit="SaveService" class="mb-4 mt-3">
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" placeholder="Service Name" @bind="newService.Name" required />
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" class="form-control" placeholder="Code (e.g. DT)" @bind="newService.ServiceCode" required />
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" placeholder="Description" @bind="newService.Description" />
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select" @bind="newService.BranchId" required>
+                            <option value="0">Select Branch...</option>
+                            @foreach (var b in branches)
+                            {
+                                <option value="@b.Id">@b.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">Add</button>
+                    </div>
+                </div>
+            </form>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Code</th>
+                        <th>Description</th>
+                        <th>Branch ID</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in services)
+                    {
+                        <tr>
+                            <td>@s.Name</td>
+                            <td>@s.ServiceCode</td>
+                            <td>@s.Description</td>
+                            <td>@s.BranchId</td>
+                            <td>
+                                <button class="btn btn-danger btn-sm" @onclick="() => DeleteService(s.Id)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     </div>
 }
-else
+else if (currentTab == "branches")
 {
-    <div class="row g-3">
-        <div class="col-md-3">
-            <div class="metric-card metric-blue">
-                <span>Total tickets</span>
-                <strong>@summary.TotalAppointments</strong>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="metric-card metric-green">
-                <span>Active queue</span>
-                <strong>@summary.ActiveQueue</strong>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="metric-card metric-orange">
-                <span>Average wait</span>
-                <strong>@summary.AverageWaitMinutes min</strong>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="metric-card metric-slate">
-                <span>Service lines</span>
-                <strong>@summary.ServicesAvailable</strong>
-            </div>
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">Branches Configuration</h5>
+            
+            <form @onsubmit="SaveBranch" class="mb-4 mt-3">
+                <div class="row g-2">
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" placeholder="Branch Name" @bind="newBranch.Name" required />
+                    </div>
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" placeholder="Location" @bind="newBranch.Location" required />
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">Add Branch</button>
+                    </div>
+                </div>
+            </form>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Location</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in branches)
+                    {
+                        <tr>
+                            <td>@b.Id</td>
+                            <td>@b.Name</td>
+                            <td>@b.Location</td>
+                            <td>
+                                <button class="btn btn-danger btn-sm" @onclick="() => DeleteBranch(b.Id)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         </div>
     </div>
 }
 
 @code {
-    private DashboardSummary? summary;
+    private string currentTab = "analytics";
+    private AdminAnalyticsResponse? analytics;
+    
+    private List<ServiceItem> services = new();
+    private List<Branch> branches = new();
+    
+    private ServiceItem newService = new();
+    private Branch newBranch = new();
 
     protected override async Task OnInitializedAsync()
     {
-        summary = await Http.GetFromJsonAsync<DashboardSummary>("https://localhost:7041/staff/dashboard") ?? new DashboardSummary
-        {
-            TotalAppointments = 0,
-            ActiveQueue = 0,
-            AverageWaitMinutes = 0,
-            ServicesAvailable = 0,
-            StaffCallsToday = 0
-        };
+        await LoadDataAsync();
+    }
+    
+    private void SetTab(string tab)
+    {
+        currentTab = tab;
+    }
+
+    private async Task LoadDataAsync()
+    {
+        analytics = await Http.GetFromJsonAsync<AdminAnalyticsResponse>("https://localhost:7041/admin/analytics");
+        services = await Http.GetFromJsonAsync<List<ServiceItem>>("https://localhost:7041/admin/services") ?? new();
+        branches = await Http.GetFromJsonAsync<List<Branch>>("https://localhost:7041/admin/branches") ?? new();
+    }
+    
+    private async Task SaveService()
+    {
+        if (newService.BranchId == 0) return;
+        
+        await Http.PostAsJsonAsync("https://localhost:7041/admin/services", newService);
+        newService = new ServiceItem();
+        await LoadDataAsync();
+    }
+    
+    private async Task DeleteService(int id)
+    {
+        await Http.DeleteAsync($"https://localhost:7041/admin/services/{id}");
+        await LoadDataAsync();
+    }
+    
+    private async Task SaveBranch()
+    {
+        await Http.PostAsJsonAsync("https://localhost:7041/admin/branches", newBranch);
+        newBranch = new Branch();
+        await LoadDataAsync();
+    }
+    
+    private async Task DeleteBranch(int id)
+    {
+        await Http.DeleteAsync($"https://localhost:7041/admin/branches/{id}");
+        await LoadDataAsync();
     }
 }
