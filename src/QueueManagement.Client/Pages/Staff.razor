@@ -98,7 +98,7 @@
 
     private async Task LoadQueueAsync()
     {
-        queueItems = await Http.GetFromJsonAsync<List<QueueViewItem>>("https://localhost:7041/staff/queue") ?? new();
+        queueItems = await Http.GetFromJsonAsync<List<QueueViewItem>>("http://localhost:5187/staff/queue") ?? new();
         selectedItem ??= queueItems.FirstOrDefault();
     }
 
@@ -116,10 +116,10 @@
     {
         string endpoint = action switch
         {
-            "call" => $"https://localhost:7041/staff/queue/{appointmentId}/call",
-            "serve" => $"https://localhost:7041/staff/queue/{appointmentId}/serve",
-            "recall" => $"https://localhost:7041/staff/queue/{appointmentId}/recall",
-            _ => $"https://localhost:7041/staff/queue/{appointmentId}/skip"
+            "call" => $"http://localhost:5187/staff/queue/{appointmentId}/call",
+            "serve" => $"http://localhost:5187/staff/queue/{appointmentId}/serve",
+            "recall" => $"http://localhost:5187/staff/queue/{appointmentId}/recall",
+            _ => $"http://localhost:5187/staff/queue/{appointmentId}/skip"
         };
 
         await Http.PostAsync(endpoint, null);
