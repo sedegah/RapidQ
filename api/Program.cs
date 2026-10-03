@@ -143,6 +143,7 @@ app.UseCors("AllowClient");
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.UseBlazorFrameworkFiles();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 

@@ -10,9 +10,9 @@ builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 var apiBaseUrl = builder.Configuration["ApiBaseUrl"];
-if (string.IsNullOrWhiteSpace(apiBaseUrl))
+if (string.IsNullOrWhiteSpace(apiBaseUrl) || (apiBaseUrl.Contains("localhost") && !builder.HostEnvironment.BaseAddress.Contains("localhost")))
 {
-    apiBaseUrl = "http://localhost:5187/";
+    apiBaseUrl = builder.HostEnvironment.BaseAddress;
 }
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
