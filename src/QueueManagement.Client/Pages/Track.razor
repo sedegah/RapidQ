@@ -1,0 +1,168 @@
+@page "/track/{QueueCode}"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+@using Microsoft.AspNetCore.SignalR.Client
+
+<PageTitle>Track Ticket - @QueueCode</PageTitle>
+
+<div class="customer-page">
+    <div class="customer-hero text-center mb-4">
+        <div>
+            <p class="eyebrow">Real-Time Tracking</p>
+            <h1>Your Ticket: @QueueCode</h1>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="empty-panel text-center">
+            <p>Loading ticket details...</p>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger text-center">
+            @errorMessage
+        </div>
+        <div class="text-center mt-3">
+            <a href="/customer" class="btn btn-secondary">Go Back</a>
+        </div>
+    }
+    else if (trackData is not null)
+    {
+        <div class="card mx-auto shadow-sm" style="max-width: 500px; border-radius: 12px; overflow: hidden;">
+            <div class="card-body text-center p-5">
+                <h2 class="display-1 fw-bold text-primary mb-3">@trackData.QueueCode</h2>
+                <h4 class="text-muted mb-4">@trackData.ServiceName</h4>
+                
+                <div class="mb-4">
+                    @if (trackData.Status == AppointmentStatus.Waiting)
+                    {
+                        <div class="alert alert-info">
+                            <h5>Status: Waiting</h5>
+                            <p class="mb-0 mt-2 fs-5">There are <strong>@trackData.PeopleAhead</strong> people ahead of you.</p>
+                        </div>
+                    }
+                    else if (trackData.Status == AppointmentStatus.Called)
+                    {
+                        <div class="alert alert-warning pulse-animation" style="border: 2px solid #ffc107;">
+                            <h5 class="mb-0 fw-bold">Status: Called!</h5>
+                            <p class="mb-0 mt-2 fs-5">Please proceed to the service desk immediately.</p>
+                        </div>
+                    }
+                    else if (trackData.Status == AppointmentStatus.Serving)
+                    {
+                        <div class="alert alert-success">
+                            <h5 class="mb-0">Status: Serving</h5>
+                            <p class="mb-0 mt-2">You are currently being served.</p>
+                        </div>
+                    }
+                    else if (trackData.Status == AppointmentStatus.Served)
+                    {
+                        <div class="alert alert-secondary">
+                            <h5 class="mb-0">Status: Completed</h5>
+                            <p class="mb-0 mt-2">Thank you for visiting us today.</p>
+                        </div>
+                    }
+                    else if (trackData.Status == AppointmentStatus.Missed)
+                    {
+                        <div class="alert alert-danger">
+                            <h5 class="mb-0">Status: Missed</h5>
+                            <p class="mb-0 mt-2">Your ticket was skipped. Please speak with a staff member.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="card-footer text-center text-muted py-3" style="background-color: #f8f9fa;">
+                Live updating. No need to refresh.
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .pulse-animation {
+        animation: pulse 2s infinite;
+    }
+    @@keyframes pulse {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7); }
+        50% { transform: scale(1.02); box-shadow: 0 0 0 10px rgba(255, 193, 7, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 193, 7, 0); }
+    }
+</style>
+
+@code {
+    [Parameter]
+    public string QueueCode { get; set; } = string.Empty;
+
+    private TrackResponse? trackData;
+    private bool isLoading = true;
+    private string errorMessage = string.Empty;
+    
+    private HubConnection? hubConnection;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl("https://localhost:7041/queueHub")
+            .WithAutomaticReconnect()
+            .Build();
+
+        hubConnection.On("QueueUpdated", async () =>
+        {
+            await LoadDataAsync();
+            await InvokeAsync(StateHasChanged);
+        });
+
+        try
+        {
+            await hubConnection.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error starting SignalR connection: {ex.Message}");
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            var response = await Http.GetAsync($"https://localhost:7041/client/track/{QueueCode}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                trackData = await response.Content.ReadFromJsonAsync<TrackResponse>();
+                errorMessage = string.Empty;
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                errorMessage = "Ticket not found. Please check your queue code.";
+                trackData = null;
+            }
+            else
+            {
+                errorMessage = "Failed to load tracking data.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Could not connect to the server.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+}

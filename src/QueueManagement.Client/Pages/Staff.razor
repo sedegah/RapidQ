@@ -51,6 +51,7 @@
                                     <button class="btn btn-primary btn-sm" @onclick:stopPropagation="true" @onclick='() => AdvanceQueue(item.Id, "call")'>Call</button>
                                     <button class="btn btn-success btn-sm" @onclick:stopPropagation="true" @onclick='() => AdvanceQueue(item.Id, "serve")'>Serve</button>
                                     <button class="btn btn-secondary btn-sm" @onclick:stopPropagation="true" @onclick='() => AdvanceQueue(item.Id, "skip")'>Skip</button>
+                                    <button class="btn btn-warning btn-sm" @onclick:stopPropagation="true" @onclick='() => AdvanceQueue(item.Id, "recall")'>Recall</button>
                                 </div>
                             </td>
                         </tr>
@@ -117,6 +118,7 @@
         {
             "call" => $"https://localhost:7041/staff/queue/{appointmentId}/call",
             "serve" => $"https://localhost:7041/staff/queue/{appointmentId}/serve",
+            "recall" => $"https://localhost:7041/staff/queue/{appointmentId}/recall",
             _ => $"https://localhost:7041/staff/queue/{appointmentId}/skip"
         };
 

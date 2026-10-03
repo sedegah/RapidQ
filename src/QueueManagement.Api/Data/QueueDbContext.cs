@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using QueueManagement.Shared;
 
 namespace QueueManagement.Api.Data;
 
-public class QueueDbContext : DbContext
+public class QueueDbContext : IdentityDbContext<IdentityUser>
 {
     public QueueDbContext(DbContextOptions<QueueDbContext> options) : base(options)
     {

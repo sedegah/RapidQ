@@ -30,6 +30,7 @@
             {
                 <p><strong>Expected Time:</strong> @expectedTime.Value.ToString("ddd, dd MMM yyyy | hh:mm tt")</p>
             }
+            <a href="/track/@ticketCode" class="btn btn-primary mt-3">Track My Ticket</a>
         </div>
     }
 
@@ -213,9 +214,23 @@
         errorMessage = string.Empty;
         successMessage = string.Empty;
 
+        if (string.IsNullOrWhiteSpace(model.CustomerName))
+        {
+            errorMessage = "Please enter your full name.";
+            isSubmitting = false;
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(model.CustomerPhone))
         {
             errorMessage = "Please enter a phone number.";
+            isSubmitting = false;
+            return;
+        }
+
+        if (model.ServiceId <= 0)
+        {
+            errorMessage = "Please select a service.";
             isSubmitting = false;
             return;
         }

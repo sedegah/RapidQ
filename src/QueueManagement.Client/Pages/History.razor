@@ -79,6 +79,10 @@
                             <li><strong>Status:</strong> @GetStatusLabel(selectedItem.Status)</li>
                             <li><strong>Served:</strong> @(selectedItem.ServedAt.HasValue ? selectedItem.ServedAt.Value.ToString("dd MMM yyyy, HH:mm") : "—")</li>
                         </ul>
+                        @if (selectedItem.Status == AppointmentStatus.Missed || selectedItem.Status == AppointmentStatus.Served)
+                        {
+                            <button class="btn btn-warning mt-3 w-100" @onclick="() => RecallQueue(selectedItem.Id)">Recall to Queue</button>
+                        }
                     </div>
                 </aside>
             }
@@ -112,6 +116,13 @@
     private void BackToDesk()
     {
         Navigation.NavigateTo("/staff");
+    }
+
+    private async Task RecallQueue(int appointmentId)
+    {
+        await Http.PostAsync($"https://localhost:7041/staff/queue/{appointmentId}/recall", null);
+        history = await Http.GetFromJsonAsync<List<AppointmentHistoryItem>>("https://localhost:7041/staff/history") ?? new();
+        selectedItem = history.FirstOrDefault(h => h.Id == selectedItem?.Id) ?? history.FirstOrDefault();
     }
 
     private static string GetStatusLabel(AppointmentStatus status)
