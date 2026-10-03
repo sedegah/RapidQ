@@ -138,7 +138,7 @@
 
         try
         {
-            var response = await Http.PostAsJsonAsync("http://localhost:5187/auth/login", loginModel);
+            var response = await Http.PostAsJsonAsync("auth/login", loginModel);
 
             if (response.IsSuccessStatusCode)
             {
@@ -179,7 +179,7 @@
 
         try
         {
-            var response = await Http.PostAsJsonAsync("http://localhost:5187/auth/register", registerModel);
+            var response = await Http.PostAsJsonAsync("auth/register", registerModel);
 
             if (response.IsSuccessStatusCode)
             {

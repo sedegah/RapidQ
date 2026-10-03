@@ -251,7 +251,7 @@
         try
         {
             services.Clear();
-            var loadedServices = await Http.GetFromJsonAsync<List<ServiceItem>>("http://localhost:5187/client/services") ?? new();
+            var loadedServices = await Http.GetFromJsonAsync<List<ServiceItem>>("client/services") ?? new();
             services.AddRange(loadedServices);
         }
         catch
@@ -304,7 +304,7 @@
         try
         {
             model.BranchId = 1;
-            var response = await Http.PostAsJsonAsync("http://localhost:5187/client/tickets", model);
+            var response = await Http.PostAsJsonAsync("client/tickets", model);
 
             if (response.IsSuccessStatusCode)
             {

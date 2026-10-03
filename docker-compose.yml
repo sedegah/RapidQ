@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: rapidq-api
+    ports:
+      - "5187:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - Jwt__Key=RapidQSuperSecretKeyForJwtTokensDeployment2026!
+      - Jwt__Issuer=RapidQApi
+      - Jwt__Audience=RapidQClient
+    volumes:
+      - rapidq-storage:/app/storage
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: rapidq-client
+    ports:
+      - "5267:80"
+    depends_on:
+      - api
+
+volumes:
+  rapidq-storage:
