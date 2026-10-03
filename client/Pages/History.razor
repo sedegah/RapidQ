@@ -107,7 +107,7 @@
 
         try
         {
-            history = await Http.GetFromJsonAsync<List<AppointmentHistoryItem>>("http://localhost:5187/staff/history") ?? new();
+            history = await Http.GetFromJsonAsync<List<AppointmentHistoryItem>>("staff/history") ?? new();
             selectedItem ??= history.FirstOrDefault();
         }
         finally
@@ -128,8 +128,8 @@
 
     private async Task RecallQueue(int appointmentId)
     {
-        await Http.PostAsync($"http://localhost:5187/staff/queue/{appointmentId}/recall", null);
-        history = await Http.GetFromJsonAsync<List<AppointmentHistoryItem>>("http://localhost:5187/staff/history") ?? new();
+        await Http.PostAsync($"staff/queue/{appointmentId}/recall", null);
+        history = await Http.GetFromJsonAsync<List<AppointmentHistoryItem>>("staff/history") ?? new();
         selectedItem = history.FirstOrDefault(h => h.Id == selectedItem?.Id) ?? history.FirstOrDefault();
     }
 

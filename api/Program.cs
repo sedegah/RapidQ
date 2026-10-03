@@ -27,14 +27,21 @@ static string GenerateQueueCode(int queueNumber, string serviceCode)
 
 var builder = WebApplication.CreateBuilder(args);
 
-var dbPath = DatabasePathProvider.ResolveDatabasePath(builder.Environment.ContentRootPath);
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var dbPath = !string.IsNullOrWhiteSpace(connectionString)
+    ? connectionString
+    : $"Data Source={DatabasePathProvider.ResolveDatabasePath(builder.Environment.ContentRootPath)}";
 
 builder.Services.AddDbContext<QueueDbContext>(options =>
-    options.UseSqlite($"Data Source={dbPath}"));
+    options.UseSqlite(dbPath));
 
 builder.Services.AddIdentity<IdentityUser, IdentityRole>()
     .AddEntityFrameworkStores<QueueDbContext>()
     .AddDefaultTokenProviders();
+
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "RapidQSecretSuperSecureKeyForJwtTokens2026RapidQ!";
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "RapidQApi";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "RapidQClient";
 
 builder.Services.AddAuthentication(options =>
 {
@@ -49,9 +56,9 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
     };
 });
 builder.Services.AddAuthorization();
@@ -59,15 +66,18 @@ builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
 builder.Services.AddOpenApi();
 
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowClient", policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:5267",
-                "https://localhost:7042",
-                "https://localhost:7041",
-                "http://localhost:5187")
+        policy.SetIsOriginAllowed(_ => true)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -166,14 +176,14 @@ authApi.MapPost("/login", async (LoginRequest req, UserManager<IdentityUser> use
             claims.Add(new Claim(ClaimTypes.Role, role));
         }
         
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]!));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"] ?? jwtKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         
         var token = new JwtSecurityToken(
-            issuer: config["Jwt:Issuer"],
-            audience: config["Jwt:Audience"],
+            issuer: config["Jwt:Issuer"] ?? jwtIssuer,
+            audience: config["Jwt:Audience"] ?? jwtAudience,
             claims: claims,
-            expires: DateTime.Now.AddDays(1),
+            expires: DateTime.UtcNow.AddDays(1),
             signingCredentials: creds
         );
         

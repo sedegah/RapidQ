@@ -206,36 +206,36 @@ else if (currentTab == "branches")
 
     private async Task LoadDataAsync()
     {
-        analytics = await Http.GetFromJsonAsync<AdminAnalyticsResponse>("http://localhost:5187/admin/analytics");
-        services = await Http.GetFromJsonAsync<List<ServiceItem>>("http://localhost:5187/admin/services") ?? new();
-        branches = await Http.GetFromJsonAsync<List<Branch>>("http://localhost:5187/admin/branches") ?? new();
+        analytics = await Http.GetFromJsonAsync<AdminAnalyticsResponse>("admin/analytics");
+        services = await Http.GetFromJsonAsync<List<ServiceItem>>("admin/services") ?? new();
+        branches = await Http.GetFromJsonAsync<List<Branch>>("admin/branches") ?? new();
     }
     
     private async Task SaveService()
     {
         if (newService.BranchId == 0) return;
         
-        await Http.PostAsJsonAsync("http://localhost:5187/admin/services", newService);
+        await Http.PostAsJsonAsync("admin/services", newService);
         newService = new ServiceItem();
         await LoadDataAsync();
     }
     
     private async Task DeleteService(int id)
     {
-        await Http.DeleteAsync($"http://localhost:5187/admin/services/{id}");
+        await Http.DeleteAsync($"admin/services/{id}");
         await LoadDataAsync();
     }
     
     private async Task SaveBranch()
     {
-        await Http.PostAsJsonAsync("http://localhost:5187/admin/branches", newBranch);
+        await Http.PostAsJsonAsync("admin/branches", newBranch);
         newBranch = new Branch();
         await LoadDataAsync();
     }
     
     private async Task DeleteBranch(int id)
     {
-        await Http.DeleteAsync($"http://localhost:5187/admin/branches/{id}");
+        await Http.DeleteAsync($"admin/branches/{id}");
         await LoadDataAsync();
     }
 }
