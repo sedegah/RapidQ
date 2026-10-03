@@ -1,0 +1,204 @@
+@page "/"
+@page "/login"
+@using QueueManagement.Client.Auth
+@using QueueManagement.Shared
+@using System.Security.Claims
+@inject HttpClient Http
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Authentication</PageTitle>
+
+<div class="auth-page py-4">
+    <div class="customer-hero mb-4">
+        <div>
+            <p class="eyebrow">RapidQ Management</p>
+            <h1>Staff & System Authentication</h1>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger mb-4 mx-auto" style="max-width: 480px;">@errorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success mb-4 mx-auto" style="max-width: 480px;">@successMessage</div>
+    }
+
+    <div class="mx-auto" style="max-width: 480px; width: 100%;">
+        <div class="customer-panel" style="width: 100%; box-sizing: border-box;">
+            <div class="panel-header d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary">
+                <h3 class="mb-0 fs-4">@(isRegister ? "Register Account" : "Sign In")</h3>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-sm @(isRegister ? "btn-outline-secondary" : "btn-primary")" @onclick="() => SetTab(false)">Sign In</button>
+                    <button type="button" class="btn btn-sm @(isRegister ? "btn-primary" : "btn-outline-secondary")" @onclick="() => SetTab(true)">Register</button>
+                </div>
+            </div>
+
+            @if (!isRegister)
+            {
+                <div class="mb-4 p-3 rounded" style="background: var(--panel-alt); border: 1px solid var(--border);">
+                    <small class="text-white d-block mb-2 fw-semibold">QUICK ACCOUNTS:</small>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" @onclick='() => FillCredentials("staff@rapidq.local", "Staff123!")'>Staff Account</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" @onclick='() => FillCredentials("admin@rapidq.local", "Admin123!")'>Admin Account</button>
+                    </div>
+                </div>
+
+                <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
+                    <DataAnnotationsValidator />
+
+                    <div class="field-group mb-3">
+                        <label class="form-label d-block mb-1">Email Address</label>
+                        <InputText class="form-control w-100" @bind-Value="loginModel.Email" placeholder="staff@rapidq.local" />
+                    </div>
+
+                    <div class="field-group mb-4">
+                        <label class="form-label d-block mb-1">Password</label>
+                        <InputText class="form-control w-100" type="password" @bind-Value="loginModel.Password" placeholder="••••••••" />
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold" disabled="@isProcessing">
+                        @(isProcessing ? "Authenticating..." : "Sign In & Open Staff Desk")
+                    </button>
+                </EditForm>
+            }
+            else
+            {
+                <EditForm Model="registerModel" OnValidSubmit="HandleRegister">
+                    <DataAnnotationsValidator />
+
+                    <div class="field-group mb-3">
+                        <label class="form-label d-block mb-1">Email Address</label>
+                        <InputText class="form-control w-100" @bind-Value="registerModel.Email" placeholder="staff@rapidq.local" />
+                    </div>
+
+                    <div class="field-group mb-3">
+                        <label class="form-label d-block mb-1">Password</label>
+                        <InputText class="form-control w-100" type="password" @bind-Value="registerModel.Password" placeholder="Password" />
+                    </div>
+
+                    <div class="field-group mb-4">
+                        <label class="form-label d-block mb-1">Role</label>
+                        <InputSelect class="form-select w-100" @bind-Value="registerModel.Role">
+                            <option value="Staff">Staff</option>
+                            <option value="Admin">Admin</option>
+                            <option value="Customer">Customer</option>
+                        </InputSelect>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold" disabled="@isProcessing">
+                        @(isProcessing ? "Registering..." : "Create Account & Sign In")
+                    </button>
+                </EditForm>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginRequest loginModel = new();
+    private RegisterRequest registerModel = new() { Role = "Staff" };
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+    private bool isProcessing = false;
+    private bool isRegister = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            NavigationManager.NavigateTo("/staff");
+        }
+    }
+
+    private void SetTab(bool register)
+    {
+        isRegister = register;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+    }
+
+    private void FillCredentials(string email, string password)
+    {
+        loginModel.Email = email;
+        loginModel.Password = password;
+        errorMessage = string.Empty;
+    }
+
+    private async Task HandleLogin()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+        isProcessing = true;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("http://localhost:5187/auth/login", loginModel);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
+                if (result != null && !string.IsNullOrEmpty(result.Token))
+                {
+                    await LocalStorage.SetItemAsync("authToken", result.Token);
+                    ((JwtAuthenticationStateProvider)AuthStateProvider).MarkUserAsAuthenticated(result.Email);
+                    successMessage = "Authentication successful. Redirecting to staff desk...";
+                    await Task.Delay(300);
+                    NavigationManager.NavigateTo("/staff");
+                }
+                else
+                {
+                    errorMessage = "Failed to process authentication response.";
+                }
+            }
+            else
+            {
+                errorMessage = "Invalid email or password.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Connection error: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleRegister()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+        isProcessing = true;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("http://localhost:5187/auth/register", registerModel);
+
+            if (response.IsSuccessStatusCode)
+            {
+                loginModel.Email = registerModel.Email;
+                loginModel.Password = registerModel.Password;
+                await HandleLogin();
+            }
+            else
+            {
+                errorMessage = "Registration failed. Ensure password meets complexity requirements.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Connection error: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

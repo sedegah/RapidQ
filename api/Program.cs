@@ -104,6 +104,17 @@ using (var scope = app.Services.CreateScope())
             await userManager.AddToRoleAsync(adminUser, "Admin");
         }
     }
+
+    var staffEmail = "staff@rapidq.local";
+    if (await userManager.FindByEmailAsync(staffEmail) == null)
+    {
+        var staffUser = new IdentityUser { UserName = staffEmail, Email = staffEmail };
+        var result = await userManager.CreateAsync(staffUser, "Staff123!");
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(staffUser, "Staff");
+        }
+    }
 }
 
 if (app.Environment.IsDevelopment())
@@ -321,6 +332,47 @@ staffApi.MapGet("/dashboard", async (QueueDbContext db) =>
         StaffCallsToday = appointments.Count(a => a.Status == AppointmentStatus.Called || a.Status == AppointmentStatus.Serving),
         ServicesAvailable = await db.Services.CountAsync(),
         AverageWaitMinutes = activeQueue == 0 ? 0 : Math.Max(5, activeQueue * 7)
+    };
+});
+
+staffApi.MapGet("/analytics", async (QueueDbContext db) =>
+{
+    var appointments = await db.Appointments.Include(a => a.Service).ToListAsync();
+    var today = DateTime.UtcNow.Date;
+    var todayAppts = appointments.Where(a => a.CreatedAt.Date == today).ToList();
+    var activeQueue = appointments.Count(a => a.Status != AppointmentStatus.Served && a.Status != AppointmentStatus.Missed);
+    var servedToday = todayAppts.Count(a => a.Status == AppointmentStatus.Served);
+    var missedToday = todayAppts.Count(a => a.Status == AppointmentStatus.Missed);
+
+    var distribution = appointments
+        .Where(a => a.Service != null)
+        .GroupBy(a => a.Service!.Name)
+        .Select(g => new ServiceDistributionItem { ServiceName = g.Key, Count = g.Count() })
+        .OrderByDescending(x => x.Count)
+        .ToList();
+
+    // Status breakdown of active queue
+    var statusBreakdown = new
+    {
+        Waiting = appointments.Count(a => a.Status == AppointmentStatus.Waiting),
+        Called = appointments.Count(a => a.Status == AppointmentStatus.Called),
+        Serving = appointments.Count(a => a.Status == AppointmentStatus.Serving),
+        ServedToday = servedToday,
+        MissedToday = missedToday
+    };
+
+    return new
+    {
+        Summary = new DashboardSummary
+        {
+            TotalAppointments = appointments.Count,
+            ActiveQueue = activeQueue,
+            StaffCallsToday = appointments.Count(a => a.Status == AppointmentStatus.Called || a.Status == AppointmentStatus.Serving),
+            ServicesAvailable = await db.Services.CountAsync(),
+            AverageWaitMinutes = activeQueue == 0 ? 0 : Math.Max(5, activeQueue * 7)
+        },
+        ServiceDistribution = distribution,
+        StatusBreakdown = statusBreakdown
     };
 });
 

@@ -1,0 +1,340 @@
+@page "/customer"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Ticket Kiosk - RapidQ</PageTitle>
+
+<div class="customer-page">
+    <div class="customer-hero">
+        <div>
+            <p class="eyebrow">Self-Service Kiosk</p>
+            <h1>Welcome to RapidQ</h1>
+            <p style="color: var(--muted); margin: 0.4rem 0 0;">Take a ticket and we will call your number when it is your turn.</p>
+        </div>
+        <div class="hero-badge">
+            <span>Office Hours</span>
+            <strong>Mon - Fri, 09:00 - 17:00</strong>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    @* ── Ticket Confirmation ── *@
+    @if (!string.IsNullOrWhiteSpace(ticketCode))
+    {
+        <div class="ticket-box">
+            <p class="ticket-label">Your Ticket Number</p>
+            <h2>@ticketCode</h2>
+            <p style="color: var(--muted);">@successMessage</p>
+            @if (expectedTime.HasValue)
+            {
+                <p style="color: var(--muted-strong);"><strong>Expected Time:</strong> @expectedTime.Value.ToString("ddd, dd MMM yyyy | hh:mm tt")</p>
+            }
+            <div style="display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap;">
+                <a href="/track/@ticketCode" class="btn btn-primary">Track My Ticket</a>
+                <button class="btn btn-secondary" @onclick="ResetKiosk">New Ticket</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        @* ── Kiosk Form ── *@
+        <div class="customer-shell">
+            <div class="customer-panel">
+                <div class="panel-header">
+                    <p class="eyebrow">Step 1</p>
+                    <h3>Select a Service</h3>
+                </div>
+
+                @if (services.Count == 0)
+                {
+                    <div class="empty-panel">
+                        <p>Loading services...</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="kiosk-services">
+                        @foreach (var svc in services)
+                        {
+                            <button class="kiosk-service-btn @(model.ServiceId == svc.Id ? "selected" : "")"
+                                    @onclick="() => SelectService(svc)">
+                                <strong>@svc.Name</strong>
+                                @if (!string.IsNullOrWhiteSpace(svc.Description))
+                                {
+                                    <span>@svc.Description</span>
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+
+                @if (model.ServiceId > 0)
+                {
+                    <div class="panel-header" style="margin-top: 1.5rem;">
+                        <p class="eyebrow">Step 2</p>
+                        <h3>Your Details</h3>
+                    </div>
+
+                    <EditForm Model="model" OnValidSubmit="HandleSubmit">
+                        <div class="form-grid">
+                            <div class="field-group">
+                                <label class="form-label">Full Name</label>
+                                <InputText class="form-control" placeholder="Enter your full name" @bind-Value="model.CustomerName" />
+                            </div>
+
+                            <div class="field-group">
+                                <label class="form-label">Phone Number</label>
+                                <InputText class="form-control" placeholder="e.g. 071 234 5678" @bind-Value="model.CustomerPhone" />
+                            </div>
+
+                            <div class="field-group">
+                                <label class="form-label">Email (optional)</label>
+                                <InputText class="form-control" placeholder="you@email.com" @bind-Value="model.CustomerEmail" />
+                            </div>
+
+                            <div class="field-group">
+                                <label class="form-label">Preferred Time</label>
+                                <input type="time" class="form-control" min="09:00" max="16:45" step="900" value="@model.TimeSlot" @onchange="OnTimeChanged" />
+                            </div>
+
+                            <div class="field-group full-width">
+                                <label class="form-label">Preferred Date</label>
+                                <input type="date"
+                                       class="form-control"
+                                       value="@model.AppointmentDate.ToString("yyyy-MM-dd")"
+                                       min="@GetMinDate()"
+                                       @onchange="OnDateChanged" />
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary action-button" type="submit" disabled="@isSubmitting">
+                            @(isSubmitting ? "Processing..." : "Get Queue Ticket")
+                        </button>
+                    </EditForm>
+                }
+            </div>
+
+            <aside class="info-panel">
+                <div class="info-card-block">
+                    <span class="mini-label">Available Services</span>
+                    <h4>@services.Count</h4>
+                    <ul>
+                        @foreach (var svc in services)
+                        {
+                            <li>@svc.Name</li>
+                        }
+                    </ul>
+                </div>
+
+                <div class="info-card-block">
+                    <span class="mini-label">Track Existing Ticket</span>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                        <input class="form-control" placeholder="e.g. TE-0001" @bind="trackCode" style="flex: 1;" />
+                        <button class="btn btn-primary" @onclick="TrackTicket">Track</button>
+                    </div>
+                </div>
+
+                <div class="info-card-block support-card">
+                    <span class="mini-label">Need Help?</span>
+                    <p style="color: var(--muted); margin: 0; line-height: 1.6;">
+                        If you need assistance, please speak to a staff member at the information desk. Appointments are available Monday to Friday only.
+                    </p>
+                </div>
+            </aside>
+        </div>
+    }
+</div>
+
+@code {
+    private CreateAppointmentRequest model = new()
+    {
+        AppointmentDate = GetNextBusinessDay(DateTime.Today),
+        TimeSlot = "09:00",
+        BranchId = 1
+    };
+
+    private readonly List<ServiceItem> services = new();
+    private bool isSubmitting;
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+    private string ticketCode = string.Empty;
+    private DateTime? expectedTime;
+    private string trackCode = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadServices();
+    }
+
+    private void SelectService(ServiceItem svc)
+    {
+        model.ServiceId = svc.Id;
+    }
+
+    private void ResetKiosk()
+    {
+        ticketCode = string.Empty;
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+        expectedTime = null;
+        model = new CreateAppointmentRequest
+        {
+            AppointmentDate = GetNextBusinessDay(DateTime.Today),
+            TimeSlot = "09:00",
+            BranchId = 1
+        };
+    }
+
+    private void TrackTicket()
+    {
+        if (!string.IsNullOrWhiteSpace(trackCode))
+        {
+            Navigation.NavigateTo($"/track/{trackCode.Trim()}");
+        }
+    }
+
+    private void OnDateChanged(ChangeEventArgs e)
+    {
+        var rawValue = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(rawValue) || !DateTime.TryParse(rawValue, out var selectedDate))
+        {
+            return;
+        }
+
+        if (!AppointmentScheduling.IsBusinessDay(selectedDate))
+        {
+            errorMessage = "Appointments are available Monday to Friday only.";
+            model.AppointmentDate = GetNextBusinessDay(selectedDate);
+            return;
+        }
+
+        errorMessage = string.Empty;
+        model.AppointmentDate = selectedDate;
+    }
+
+    private void OnTimeChanged(ChangeEventArgs e)
+    {
+        var selectedTime = e.Value?.ToString() ?? string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(selectedTime) && !AppointmentScheduling.IsWithinBusinessHours(selectedTime))
+        {
+            errorMessage = "Please select a preferred time between 09:00 and 17:00 during office hours.";
+            model.TimeSlot = string.Empty;
+            return;
+        }
+
+        errorMessage = string.Empty;
+        model.TimeSlot = selectedTime;
+    }
+
+    private static DateTime GetNextBusinessDay(DateTime date)
+    {
+        while (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+        {
+            date = date.AddDays(1);
+        }
+
+        return date;
+    }
+
+    private static string GetMinDate()
+    {
+        return DateTime.Today.ToString("yyyy-MM-dd");
+    }
+
+    private async Task LoadServices()
+    {
+        try
+        {
+            services.Clear();
+            var loadedServices = await Http.GetFromJsonAsync<List<ServiceItem>>("http://localhost:5187/client/services") ?? new();
+            services.AddRange(loadedServices);
+        }
+        catch
+        {
+            errorMessage = "The service list is currently unavailable. Please try again shortly.";
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        isSubmitting = true;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(model.CustomerName))
+        {
+            errorMessage = "Please enter your full name.";
+            isSubmitting = false;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(model.CustomerPhone))
+        {
+            errorMessage = "Please enter a phone number.";
+            isSubmitting = false;
+            return;
+        }
+
+        if (model.ServiceId <= 0)
+        {
+            errorMessage = "Please select a service.";
+            isSubmitting = false;
+            return;
+        }
+
+        if (!AppointmentScheduling.IsBusinessDay(model.AppointmentDate))
+        {
+            errorMessage = "Appointments are available Monday to Friday only.";
+            isSubmitting = false;
+            return;
+        }
+
+        if (!AppointmentScheduling.IsWithinBusinessHours(model.TimeSlot))
+        {
+            errorMessage = "Please select a preferred time between 09:00 and 17:00 during office hours.";
+            isSubmitting = false;
+            return;
+        }
+
+        try
+        {
+            model.BranchId = 1;
+            var response = await Http.PostAsJsonAsync("http://localhost:5187/client/tickets", model);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<QueueTicketResponse>();
+                ticketCode = result?.QueueCode ?? string.Empty;
+                expectedTime = result?.ExpectedTime ?? DateTime.Now;
+                successMessage = $"Ticket confirmed for {result?.ServiceName}. Please keep your phone ready and wait for your number to be called.";
+            }
+            else
+            {
+                var message = await response.Content.ReadAsStringAsync();
+                errorMessage = string.IsNullOrWhiteSpace(message) ? "Queue request could not be processed." : message;
+            }
+        }
+        catch
+        {
+            errorMessage = "The queue service is not available. Please try again later.";
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private class QueueTicketResponse
+    {
+        public int QueueNumber { get; set; }
+        public string QueueCode { get; set; } = string.Empty;
+        public string ServiceName { get; set; } = string.Empty;
+        public DateTime ExpectedTime { get; set; }
+    }
+}

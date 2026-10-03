@@ -1,0 +1,61 @@
+@inherits LayoutComponentBase
+@using QueueManagement.Client.Auth
+@inject NavigationManager Navigation
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject AuthenticationStateProvider AuthStateProvider
+
+<div class="page">
+    @if (ShowSidebar)
+    {
+        <div class="sidebar">
+            <NavMenu />
+        </div>
+    }
+
+    <main class="w-100">
+        <div class="top-row px-4 d-flex justify-content-between align-items-center">
+            <span class="fw-semibold">RapidQ</span>
+            @if (IsCustomerPortal)
+            {
+                <span class="fw-semibold" style="color: var(--muted); font-size: 0.85rem;">Ticket Kiosk</span>
+            }
+            else if (!ShowSidebar)
+            {
+                <a href="/customer" class="btn btn-outline-secondary btn-sm" style="font-size: 0.85rem;">Customer Ticket Portal</a>
+            }
+            else
+            {
+                <button type="button" class="btn btn-outline-danger btn-sm" style="font-size: 0.85rem;" @onclick="Logout">Sign Out</button>
+            }
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    private string currentPath = string.Empty;
+
+    private bool IsCustomerPortal => currentPath.StartsWith("customer") || currentPath.StartsWith("track");
+
+    private bool ShowSidebar => currentPath.StartsWith("staff") || currentPath.StartsWith("history") || currentPath.StartsWith("admin");
+
+    protected override void OnInitialized()
+    {
+        currentPath = Navigation.ToBaseRelativePath(Navigation.Uri);
+        Navigation.LocationChanged += (_, _) =>
+        {
+            currentPath = Navigation.ToBaseRelativePath(Navigation.Uri);
+            InvokeAsync(StateHasChanged);
+        };
+    }
+
+    private async Task Logout()
+    {
+        await LocalStorage.RemoveItemAsync("authToken");
+        ((JwtAuthenticationStateProvider)AuthStateProvider).MarkUserAsLoggedOut();
+        Navigation.NavigateTo("/");
+    }
+}

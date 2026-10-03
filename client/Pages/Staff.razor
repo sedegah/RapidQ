@@ -1,0 +1,313 @@
+@page "/staff"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@implements IDisposable
+@using System.Text.Json
+@using System.Text.Json.Serialization
+
+<PageTitle>Service Desk</PageTitle>
+
+<div class="staff-interface">
+    <div class="page-header">
+        <div>
+            <p class="eyebrow">Operations</p>
+            <h3>Service Desk Queue</h3>
+        </div>
+        <button class="btn btn-secondary" type="button" @onclick="OpenHistoryPage">Transaction History</button>
+    </div>
+
+    @if (analytics != null)
+    {
+        <div class="analytics-bar">
+            <div class="metric-card">
+                <span>Total Tickets</span>
+                <strong>@analytics.Summary.TotalAppointments</strong>
+            </div>
+            <div class="metric-card">
+                <span>Active Queue</span>
+                <strong>@analytics.Summary.ActiveQueue</strong>
+            </div>
+            <div class="metric-card">
+                <span>Served Today</span>
+                <strong>@analytics.StatusBreakdown.ServedToday</strong>
+            </div>
+            <div class="metric-card">
+                <span>Missed Today</span>
+                <strong>@analytics.StatusBreakdown.MissedToday</strong>
+            </div>
+            <div class="metric-card">
+                <span>Avg Wait (min)</span>
+                <strong>@analytics.Summary.AverageWaitMinutes</strong>
+            </div>
+        </div>
+
+        @if (analytics.ServiceDistribution.Count > 0 || analytics.StatusBreakdown.Waiting + analytics.StatusBreakdown.Called + analytics.StatusBreakdown.Serving > 0)
+        {
+            <div class="analytics-panels">
+                @if (analytics.ServiceDistribution.Count > 0)
+                {
+                    var maxCount = analytics.ServiceDistribution.Max(s => s.Count);
+                    <div class="table-wrap analytics-dist">
+                        <div class="analytics-section-header">Service Distribution</div>
+                        <table class="table table-modern">
+                            <thead>
+                                <tr>
+                                    <th>Service</th>
+                                    <th>Tickets</th>
+                                    <th style="width:45%">Distribution</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var svc in analytics.ServiceDistribution)
+                                {
+                                    var pct = maxCount > 0 ? (int)Math.Round((double)svc.Count / maxCount * 100) : 0;
+                                    <tr>
+                                        <td>@svc.ServiceName</td>
+                                        <td><strong>@svc.Count</strong></td>
+                                        <td>
+                                            <div class="dist-bar-wrap">
+                                                <div class="dist-bar" style="width:@(pct)%"></div>
+                                                <span class="dist-pct">@pct%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <div class="table-wrap analytics-status">
+                    <div class="analytics-section-header">Queue Status</div>
+                    <table class="table table-modern">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="status-badge status-waiting">Waiting</span></td>
+                                <td><strong>@analytics.StatusBreakdown.Waiting</strong></td>
+                            </tr>
+                            <tr>
+                                <td><span class="status-badge status-called">Called</span></td>
+                                <td><strong>@analytics.StatusBreakdown.Called</strong></td>
+                            </tr>
+                            <tr>
+                                <td><span class="status-badge status-serving">Serving</span></td>
+                                <td><strong>@analytics.StatusBreakdown.Serving</strong></td>
+                            </tr>
+                            <tr>
+                                <td><span class="status-badge status-served">Served Today</span></td>
+                                <td><strong>@analytics.StatusBreakdown.ServedToday</strong></td>
+                            </tr>
+                            <tr>
+                                <td><span class="status-badge status-missed">Missed Today</span></td>
+                                <td><strong>@analytics.StatusBreakdown.MissedToday</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+
+    <div class="page-header" style="margin-top:1.5rem; margin-bottom:0.75rem;">
+        <div>
+            <p class="eyebrow">Live</p>
+            <h3 style="font-size:1.1rem">Current Queue</h3>
+        </div>
+        <button class="btn btn-primary btn-sm" type="button" @onclick="LoadAllAsync">Refresh</button>
+    </div>
+
+    @if (queueItems.Count == 0)
+    {
+        <div class="empty-panel">
+            <p>No customers are waiting in the queue.</p>
+        </div>
+    }
+    else
+    {
+        <div class="desk-layout">
+            <div class="table-wrap">
+                <table class="table table-modern">
+                <thead>
+                    <tr>
+                        <th>Queue</th>
+                        <th>Customer</th>
+                        <th>Service</th>
+                        <th>Wait</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in queueItems)
+                    {
+                        <tr class="@(selectedItem?.Id == item.Id ? "selected-row" : string.Empty)" @onclick="() => SelectItem(item)">
+                            <td class="queue-number">@item.QueueCode</td>
+                            <td>@item.CustomerName</td>
+                            <td>@item.ServiceName</td>
+                            <td><span class="timer-badge">@GetQueueTimer(item)</span></td>
+                            <td>
+                                <span class="status-badge status-@item.Status.ToString().ToLower()">@GetStatusLabel(item.Status)</span>
+                            </td>
+                            <td>
+                                <div class="button-group">
+                                    <button class="btn btn-primary btn-sm" @onclick:stopPropagation="true" @onclick='() => AdvanceQueue(item.Id, "call")'>Call</button>
+                                    <button class="btn btn-success btn-sm" @onclick:stopPropagation="true" @onclick='() => AdvanceQueue(item.Id, "serve")'>Serve</button>
+                                    <button class="btn btn-secondary btn-sm" @onclick:stopPropagation="true" @onclick='() => AdvanceQueue(item.Id, "skip")'>Skip</button>
+                                    <button class="btn btn-warning btn-sm" @onclick:stopPropagation="true" @onclick='() => AdvanceQueue(item.Id, "recall")'>Recall</button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<QueueViewItem> queueItems = new();
+    private QueueViewItem? selectedItem;
+    private CancellationTokenSource? timerCancellation;
+    private StaffAnalytics? analytics;
+
+    private class StaffAnalytics
+    {
+        [JsonPropertyName("summary")]
+        public DashboardSummary Summary { get; set; } = new();
+        [JsonPropertyName("serviceDistribution")]
+        public List<ServiceDistributionItem> ServiceDistribution { get; set; } = new();
+        [JsonPropertyName("statusBreakdown")]
+        public StatusBreakdownData StatusBreakdown { get; set; } = new();
+    }
+
+    private class StatusBreakdownData
+    {
+        [JsonPropertyName("waiting")]
+        public int Waiting { get; set; }
+        [JsonPropertyName("called")]
+        public int Called { get; set; }
+        [JsonPropertyName("serving")]
+        public int Serving { get; set; }
+        [JsonPropertyName("servedToday")]
+        public int ServedToday { get; set; }
+        [JsonPropertyName("missedToday")]
+        public int MissedToday { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var token = await LocalStorage.GetItemAsync<string>("authToken");
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            Navigation.NavigateTo("/", replace: true);
+            return;
+        }
+
+        timerCancellation = new CancellationTokenSource();
+        _ = StartTimerLoopAsync(timerCancellation.Token);
+        await LoadAllAsync();
+    }
+
+    private async Task StartTimerLoopAsync(CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    public void Dispose()
+    {
+        timerCancellation?.Cancel();
+        timerCancellation?.Dispose();
+    }
+
+    private async Task LoadAllAsync()
+    {
+        await Task.WhenAll(LoadQueueAsync(), LoadAnalyticsAsync());
+    }
+
+    private async Task LoadQueueAsync()
+    {
+        queueItems = await Http.GetFromJsonAsync<List<QueueViewItem>>("http://localhost:5187/staff/queue") ?? new();
+        selectedItem ??= queueItems.FirstOrDefault();
+    }
+
+    private async Task LoadAnalyticsAsync()
+    {
+        try
+        {
+            analytics = await Http.GetFromJsonAsync<StaffAnalytics>("http://localhost:5187/staff/analytics");
+        }
+        catch
+        {
+            analytics = null;
+        }
+    }
+
+    private void SelectItem(QueueViewItem item)
+    {
+        selectedItem = item;
+    }
+
+    private void OpenHistoryPage()
+    {
+        Navigation.NavigateTo("/history");
+    }
+
+    private async Task AdvanceQueue(int appointmentId, string action)
+    {
+        string endpoint = action switch
+        {
+            "call" => $"http://localhost:5187/staff/queue/{appointmentId}/call",
+            "serve" => $"http://localhost:5187/staff/queue/{appointmentId}/serve",
+            "recall" => $"http://localhost:5187/staff/queue/{appointmentId}/recall",
+            _ => $"http://localhost:5187/staff/queue/{appointmentId}/skip"
+        };
+
+        await Http.PostAsync(endpoint, null);
+        await LoadAllAsync();
+    }
+
+    private static string GetStatusLabel(AppointmentStatus status)
+    {
+        return status switch
+        {
+            AppointmentStatus.Waiting => "Waiting",
+            AppointmentStatus.Called => "Called",
+            AppointmentStatus.Serving => "Serving",
+            AppointmentStatus.Served => "Served",
+            AppointmentStatus.Missed => "Missed",
+            _ => status.ToString()
+        };
+    }
+
+    private static string GetQueueTimer(QueueViewItem item)
+    {
+        var reference = item.Status == AppointmentStatus.Waiting ? item.CreatedAt : item.CalledAt ?? item.CreatedAt;
+        var elapsed = DateTime.UtcNow - reference;
+        var totalSeconds = Math.Max(0, (int)elapsed.TotalSeconds);
+        var minutes = totalSeconds / 60;
+        var seconds = totalSeconds % 60;
+
+        return item.Status == AppointmentStatus.Waiting
+            ? $"Wait {minutes:D2}:{seconds:D2}"
+            : $"Service {minutes:D2}:{seconds:D2}";
+    }
+}
+

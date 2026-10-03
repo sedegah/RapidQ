@@ -40,6 +40,7 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
 
     public void MarkUserAsLoggedOut()
     {
+        _httpClient.DefaultRequestHeaders.Authorization = null;
         var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
         var authState = Task.FromResult(new AuthenticationState(anonymousUser));
         NotifyAuthenticationStateChanged(authState);
