@@ -27,6 +27,12 @@ static string GenerateQueueCode(int queueNumber, string serviceCode)
 
 var builder = WebApplication.CreateBuilder(args);
 
+var portEnv = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(portEnv))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{portEnv}");
+}
+
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 var dbPath = !string.IsNullOrWhiteSpace(connectionString)
     ? connectionString
@@ -132,10 +138,13 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseForwardedHeaders();
 app.UseCors("AllowClient");
-app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.MapGet("/api/health", () => new { Status = "ok", Timestamp = DateTime.UtcNow });
 
@@ -554,6 +563,7 @@ adminApi.MapDelete("/branches/{id:int}", async (int id, QueueDbContext db) =>
     return Results.NoContent();
 });
 
+app.MapFallbackToFile("index.html");
 
 app.Run();
 
