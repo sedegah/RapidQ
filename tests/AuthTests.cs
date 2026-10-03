@@ -20,9 +20,10 @@ public class AuthTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task Register_ValidUser_ReturnsOk()
     {
         // Arrange
+        var uniqueEmail = $"testuser_{Guid.NewGuid():N}@rapidq.local";
         var request = new RegisterRequest
         {
-            Email = "testuser@rapidq.local",
+            Email = uniqueEmail,
             Password = "Password123!",
             Role = "Customer"
         };
@@ -38,9 +39,10 @@ public class AuthTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task Login_ValidUser_ReturnsToken()
     {
         // Arrange
+        var uniqueEmail = $"loginuser_{Guid.NewGuid():N}@rapidq.local";
         var registerRequest = new RegisterRequest
         {
-            Email = "loginuser@rapidq.local",
+            Email = uniqueEmail,
             Password = "Password123!",
             Role = "Customer"
         };
@@ -48,7 +50,7 @@ public class AuthTests : IClassFixture<WebApplicationFactory<Program>>
 
         var loginRequest = new LoginRequest
         {
-            Email = "loginuser@rapidq.local",
+            Email = uniqueEmail,
             Password = "Password123!"
         };
 
@@ -60,7 +62,7 @@ public class AuthTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(authResponse);
         Assert.NotEmpty(authResponse.Token);
-        Assert.Equal("loginuser@rapidq.local", authResponse.Email);
+        Assert.Equal(uniqueEmail, authResponse.Email);
         Assert.Contains("Customer", authResponse.Roles);
     }
 
