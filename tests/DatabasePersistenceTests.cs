@@ -46,8 +46,10 @@ public class DatabasePersistenceTests
                 await db.SaveChangesAsync();
             }
 
-            using var reopenedDb = new QueueDbContext(options);
-            Assert.Equal(60, await reopenedDb.Appointments.CountAsync());
+            using (var reopenedDb = new QueueDbContext(options))
+            {
+                Assert.Equal(60, await reopenedDb.Appointments.CountAsync());
+            }
         }
         finally
         {
