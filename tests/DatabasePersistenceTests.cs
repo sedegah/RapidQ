@@ -22,7 +22,7 @@ public class DatabasePersistenceTests
     {
         var path = Path.Combine(Path.GetTempPath(), $"rapidq-{Guid.NewGuid():N}.db");
         var options = new DbContextOptionsBuilder<QueueDbContext>()
-            .UseSqlite($"Data Source={path}")
+            .UseSqlite($"Data Source={path};Pooling=False")
             .Options;
 
         try
