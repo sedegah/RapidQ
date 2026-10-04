@@ -19,16 +19,31 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        var savedToken = await _localStorage.GetItemAsync<string>("authToken");
-
-        if (string.IsNullOrWhiteSpace(savedToken))
+        try
         {
+            var savedToken = await _localStorage.GetItemAsync<string>("authToken");
+
+            if (string.IsNullOrWhiteSpace(savedToken))
+            {
+                return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
+            }
+
+            var claims = ParseClaimsFromJwt(savedToken).ToList();
+            if (!claims.Any())
+            {
+                await _localStorage.RemoveItemAsync("authToken");
+                return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
+            }
+
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", savedToken);
+
+            return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(claims, "jwt")));
+        }
+        catch
+        {
+            try { await _localStorage.RemoveItemAsync("authToken"); } catch { }
             return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
         }
-
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", savedToken);
-
-        return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(ParseClaimsFromJwt(savedToken), "jwt")));
     }
 
     public void MarkUserAsAuthenticated(string email)
@@ -48,40 +63,50 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
 
     private IEnumerable<Claim> ParseClaimsFromJwt(string jwt)
     {
-        var claims = new List<Claim>();
-        var payload = jwt.Split('.')[1];
-        var jsonBytes = ParseBase64WithoutPadding(payload);
-        var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
-
-        if (keyValuePairs != null)
+        try
         {
-            keyValuePairs.TryGetValue(ClaimTypes.Role, out object? roles);
+            var claims = new List<Claim>();
+            var parts = jwt.Split('.');
+            if (parts.Length < 2) return claims;
 
-            if (roles != null)
+            var payload = parts[1];
+            var jsonBytes = ParseBase64WithoutPadding(payload);
+            var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
+
+            if (keyValuePairs != null)
             {
-                if (roles.ToString()!.Trim().StartsWith("["))
+                keyValuePairs.TryGetValue(ClaimTypes.Role, out object? roles);
+
+                if (roles != null)
                 {
-                    var parsedRoles = JsonSerializer.Deserialize<string[]>(roles.ToString()!);
-                    if (parsedRoles != null)
+                    if (roles.ToString()!.Trim().StartsWith("["))
                     {
-                        foreach (var parsedRole in parsedRoles)
+                        var parsedRoles = JsonSerializer.Deserialize<string[]>(roles.ToString()!);
+                        if (parsedRoles != null)
                         {
-                            claims.Add(new Claim(ClaimTypes.Role, parsedRole));
+                            foreach (var parsedRole in parsedRoles)
+                            {
+                                claims.Add(new Claim(ClaimTypes.Role, parsedRole));
+                            }
                         }
                     }
-                }
-                else
-                {
-                    claims.Add(new Claim(ClaimTypes.Role, roles.ToString()!));
+                    else
+                    {
+                        claims.Add(new Claim(ClaimTypes.Role, roles.ToString()!));
+                    }
+
+                    keyValuePairs.Remove(ClaimTypes.Role);
                 }
 
-                keyValuePairs.Remove(ClaimTypes.Role);
+                claims.AddRange(keyValuePairs.Select(kvp => new Claim(kvp.Key, kvp.Value.ToString() ?? string.Empty)));
             }
 
-            claims.AddRange(keyValuePairs.Select(kvp => new Claim(kvp.Key, kvp.Value.ToString() ?? string.Empty)));
+            return claims;
         }
-
-        return claims;
+        catch
+        {
+            return Enumerable.Empty<Claim>();
+        }
     }
 
     private byte[] ParseBase64WithoutPadding(string base64)
