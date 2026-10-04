@@ -42,9 +42,33 @@ main {
         text-overflow: ellipsis;
     }
 
-@media (max-width: 640.98px) {
+@media (max-width: 768px) {
+    .page {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        min-height: 0;
+        height: auto;
+        position: relative;
+        top: auto;
+    }
+
+    main {
+        min-width: 0;
+        width: 100%;
+    }
+
+    article {
+        min-width: 0;
+        padding: 1rem !important;
+    }
+
     .top-row {
         justify-content: space-between;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
     }
 
     .top-row ::deep a, .top-row ::deep .btn-link {
@@ -52,7 +76,7 @@ main {
     }
 }
 
-@media (min-width: 641px) {
+@media (min-width: 769px) {
     .page {
         flex-direction: row;
     }

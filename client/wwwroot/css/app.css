@@ -1192,4 +1192,155 @@ p {
     min-height: 38px;
 }
 
-
+/* Keep the existing visual theme while scaling layouts for phones and tablets. */
+@media (max-width: 768px) {
+    html,
+    body,
+    #app,
+    main,
+    .content {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .content {
+        padding: 1rem !important;
+    }
+
+    .page-header {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .page-header > div {
+        min-width: 0;
+    }
+
+    .hero-panel {
+        padding: 1.5rem;
+    }
+
+    .customer-page {
+        padding-top: 0;
+    }
+
+    .customer-hero {
+        padding: 1.35rem;
+    }
+
+    .hero-badge {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .customer-panel,
+    .info-panel,
+    .card-form,
+    .ticket-box,
+    .summary-panel {
+        padding: 1rem;
+    }
+
+    .support-card {
+        min-height: 0;
+    }
+
+    .table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .analytics-bar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .analytics-panels,
+    .history-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .customer-info-panel {
+        max-width: none;
+        justify-self: stretch;
+    }
+
+    .track-card-body {
+        padding: 1.5rem 1rem;
+    }
+
+    .track-card-footer {
+        padding: 0.85rem 1rem;
+        flex-wrap: wrap;
+        text-align: center;
+    }
+
+    .nav-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .nav-tabs .nav-link {
+        white-space: nowrap;
+    }
+
+    .card-body {
+        min-width: 0;
+        overflow-x: auto;
+    }
+
+    .form-control,
+    .form-select {
+        min-height: 44px;
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .content {
+        padding: 0.75rem !important;
+    }
+
+    .customer-hero {
+        padding: 1rem;
+    }
+
+    .customer-hero h1 {
+        font-size: clamp(1.65rem, 8vw, 2.1rem);
+    }
+
+    .kiosk-services {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .page-header {
+        gap: 0.65rem;
+    }
+
+    .button-group .btn {
+        flex: 1 1 auto;
+    }
+
+    .mobile-ticket-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+    }
+
+    .mobile-ticket-info,
+    .mobile-history-info {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .mobile-svc-tag {
+        white-space: normal;
+    }
+
+    .ticket-box h2 {
+        font-size: clamp(2rem, 12vw, 3rem);
+        overflow-wrap: anywhere;
+    }
+}
+
+
