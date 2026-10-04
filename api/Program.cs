@@ -144,7 +144,18 @@ app.UseAuthorization();
 
 app.UseBlazorFrameworkFiles();
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        if (ctx.File.Name.EndsWith(".html") || ctx.File.Name.EndsWith(".json"))
+        {
+            ctx.Context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+            ctx.Context.Response.Headers.Pragma = "no-cache";
+            ctx.Context.Response.Headers.Expires = "0";
+        }
+    }
+});
 
 app.MapGet("/api/health", () => new { Status = "ok", Timestamp = DateTime.UtcNow });
 
@@ -563,7 +574,15 @@ adminApi.MapDelete("/branches/{id:int}", async (int id, QueueDbContext db) =>
     return Results.NoContent();
 });
 
-app.MapFallbackToFile("index.html");
+app.MapFallbackToFile("index.html", new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+        ctx.Context.Response.Headers.Pragma = "no-cache";
+        ctx.Context.Response.Headers.Expires = "0";
+    }
+});
 
 app.Run();
 
