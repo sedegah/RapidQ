@@ -1,4 +1,4 @@
-@page "/history"
+﻿@page "/history"
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
@@ -28,7 +28,7 @@
     }
     else
     {
-        <div class="history-layout">
+        <div class="history-layout hide-on-mobile show-on-desktop">
             <div class="table-wrap">
                 <table class="table table-modern">
                     <thead>
@@ -51,7 +51,7 @@
                                 <td>@item.QueueCode</td>
                                 <td>@item.AppointmentDate.ToString("dd MMM yyyy")</td>
                                 <td>@item.TimeSlot</td>
-                                <td>@(item.ServiceDurationMinutes.HasValue ? $"{item.ServiceDurationMinutes} min" : "—")</td>
+                                <td>@(item.ServiceDurationMinutes.HasValue ? $"{item.ServiceDurationMinutes} min" : "---")</td>
                                 <td>
                                     <span class="status-badge status-@item.Status.ToString().ToLower()">@GetStatusLabel(item.Status)</span>
                                 </td>
@@ -76,9 +76,9 @@
                             <li><strong>Phone:</strong> @selectedItem.CustomerPhone</li>
                             <li><strong>Date:</strong> @selectedItem.AppointmentDate.ToString("dd MMM yyyy")</li>
                             <li><strong>Time:</strong> @selectedItem.TimeSlot</li>
-                            <li><strong>Duration:</strong> @(selectedItem.ServiceDurationMinutes.HasValue ? $"{selectedItem.ServiceDurationMinutes} minutes" : "—")</li>
+                            <li><strong>Duration:</strong> @(selectedItem.ServiceDurationMinutes.HasValue ? $"{selectedItem.ServiceDurationMinutes} minutes" : "---")</li>
                             <li><strong>Status:</strong> @GetStatusLabel(selectedItem.Status)</li>
-                            <li><strong>Served:</strong> @(selectedItem.ServedAt.HasValue ? selectedItem.ServedAt.Value.ToString("dd MMM yyyy, HH:mm") : "—")</li>
+                            <li><strong>Served:</strong> @(selectedItem.ServedAt.HasValue ? selectedItem.ServedAt.Value.ToString("dd MMM yyyy, HH:mm") : "---")</li>
                         </ul>
                         @if (selectedItem.Status == AppointmentStatus.Missed || selectedItem.Status == AppointmentStatus.Served)
                         {
@@ -86,6 +86,32 @@
                         }
                     </div>
                 </aside>
+            }
+        </div>
+
+        <div class="mobile-history-list show-on-mobile hide-on-desktop">
+            @foreach (var item in history)
+            {
+                <div class="mobile-history-card @(selectedItem?.Id == item.Id ? "selected-card" : "")" @onclick="() => SelectItem(item)">
+                    <div class="mobile-history-header">
+                        <span class="mobile-history-code">@item.QueueCode</span>
+                        <div class="mobile-history-meta">
+                            <span class="status-badge status-@item.Status.ToString().ToLower()">@GetStatusLabel(item.Status)</span>
+                        </div>
+                    </div>
+                    <div class="mobile-history-info">
+                        <span class="mobile-cust-name">@item.CustomerName</span>
+                        <span class="mobile-svc-tag">@item.ServiceName</span>
+                    </div>
+                    <div class="mobile-history-footer">
+                        <span>@item.AppointmentDate.ToString("dd MMM yyyy")</span>
+                        <span>@(item.ServiceDurationMinutes.HasValue ? $"{item.ServiceDurationMinutes} min" : "---")</span>
+                    </div>
+                    @if (selectedItem?.Id == item.Id && (item.Status == AppointmentStatus.Missed || item.Status == AppointmentStatus.Served))
+                    {
+                        <button class="btn btn-warning w-100" style="margin-top:0.4rem;" @onclick:stopPropagation="true" @onclick="() => RecallQueue(item.Id)">Recall to Queue</button>
+                    }
+                </div>
             }
         </div>
     }
@@ -103,6 +129,11 @@
         {
             Navigation.NavigateTo("/", replace: true);
             return;
+        }
+
+        if (Http.DefaultRequestHeaders.Authorization == null)
+        {
+            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("bearer", token);
         }
 
         try

@@ -311,8 +311,9 @@ clientApi.MapGet("/track/{queueCode}", async (string queueCode, QueueDbContext d
 
     if (appointment is null) return Results.NotFound();
 
-    var peopleAhead = await db.Appointments.CountAsync(a => 
-        a.Status == AppointmentStatus.Waiting && 
+    var activeStatuses = new[] { AppointmentStatus.Waiting, AppointmentStatus.Called, AppointmentStatus.Serving };
+    var peopleAhead = await db.Appointments.CountAsync(a =>
+        activeStatuses.Contains(a.Status) &&
         a.ServiceId == appointment.ServiceId &&
         a.QueueNumber < appointment.QueueNumber);
 
