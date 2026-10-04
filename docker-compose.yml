@@ -10,11 +10,12 @@ services:
       - "5187:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      - RAPIDQ_DB_PATH=/var/data/QueueManagement.db
       - Jwt__Key=RapidQSuperSecretKeyForJwtTokensDeployment2026!
       - Jwt__Issuer=RapidQApi
       - Jwt__Audience=RapidQClient
     volumes:
-      - rapidq-storage:/app/storage
+      - rapidq-storage:/var/data
 
   client:
     build:
