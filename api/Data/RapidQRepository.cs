@@ -50,7 +50,13 @@ public sealed class RapidQRepository
         }
         catch (HttpRequestException)
         {
-            return new RegistrationResult(false, "An account with this email may already exist.");
+            var existing = await _d1.QueryAsync<ExistsRow>("SELECT 1 AS Value FROM users WHERE normalized_email = ? LIMIT 1", ct, normalizedEmail);
+            if (existing.Count > 0)
+            {
+                return new RegistrationResult(false, "An account with this email already exists.");
+            }
+
+            throw;
         }
     }
 
@@ -120,7 +126,10 @@ public sealed class RapidQRepository
         var tickets = await _d1.QueryAsync<QueueTicketRecord>(
             "WITH next_number AS (SELECT COALESCE(MAX(queue_number), 0) + 1 AS value FROM tickets) " +
             "INSERT INTO tickets (customer_name, customer_email, customer_phone, service_id, branch_id, appointment_date, time_slot, queue_number, queue_code, status, created_at) " +
-            "SELECT ?, ?, ?, s.id, b.id, ?, ?, n.value, SUBSTR(REPLACE(UPPER(s.service_code), '-', ''), 1, 2) || '-' || PRINTF('%04d', n.value), 0, ? " +
+            "SELECT ?, ?, ?, s.id, b.id, ?, ?, n.value, " +
+            "(CASE WHEN length(trim(s.service_code)) = 0 THEN 'GE' " +
+            "WHEN length(replace(upper(trim(s.service_code)), '-', '')) < 2 THEN substr(replace(upper(trim(s.service_code)), '-', '') || 'XX', 1, 2) " +
+            "ELSE substr(replace(upper(trim(s.service_code)), '-', ''), 1, 2) END) || '-' || PRINTF('%04d', n.value), 0, ? " +
             "FROM services s JOIN branches b ON b.id = ? CROSS JOIN next_number n WHERE s.id = ? " +
             "RETURNING id AS Id, queue_number AS QueueNumber, queue_code AS QueueCode, status AS Status, created_at AS CreatedAt",
             ct, request.CustomerName.Trim(), request.CustomerEmail.Trim(), request.CustomerPhone.Trim(), date, timeSlot, issuedAt.ToString("O"), branch.Id, service.Id);

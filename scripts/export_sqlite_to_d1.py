@@ -23,7 +23,7 @@ def export_database(source, output):
     connection = sqlite3.connect(source)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
-    statements = ["PRAGMA foreign_keys = ON;", "BEGIN IMMEDIATE;"]
+    statements = []
 
     branches = connection.execute("SELECT Id, Name, Location FROM Branches ORDER BY Id").fetchall()
     for row in branches:
@@ -61,7 +61,6 @@ def export_database(source, output):
         values = [row[column] for column in ["Id", "CustomerName", "CustomerEmail", "CustomerPhone", "ServiceId", "BranchId", "AppointmentDate", "TimeSlot", "QueueNumber", "QueueCode", "Status", "CreatedAt", "CalledAt", "ServedAt"]]
         statements.append(insert("tickets", columns, values, "ON CONFLICT(id) DO NOTHING"))
 
-    statements.append("COMMIT;")
     Path(output).write_text("\n".join(statements) + "\n", encoding="utf-8")
     connection.close()
     print(f"Exported {len(branches)} branches, {len(services)} services, {len(users)} users and {len(appointments)} tickets to {output}.")
