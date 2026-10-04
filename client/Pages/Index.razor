@@ -146,9 +146,9 @@
                 if (result != null && !string.IsNullOrEmpty(result.Token))
                 {
                     await LocalStorage.SetItemAsync("authToken", result.Token);
-                    ((JwtAuthenticationStateProvider)AuthStateProvider).MarkUserAsAuthenticated(result.Token);
+                    ((JwtAuthenticationStateProvider)AuthStateProvider).MarkUserAsAuthenticated(result.Email);
                     successMessage = "Authentication successful. Redirecting to staff desk...";
-                    await Task.Delay(200);
+                    await Task.Delay(300);
                     NavigationManager.NavigateTo("/staff");
                 }
                 else
