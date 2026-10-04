@@ -14,13 +14,12 @@
             <p class="eyebrow">Operations</p>
             <h3>Service Desk Queue</h3>
         </div>
-        <button class="btn btn-secondary hide-on-mobile" type="button" @onclick="OpenHistoryPage">Transaction History</button>
+        <button class="btn btn-secondary" type="button" @onclick="OpenHistoryPage">Transaction History</button>
     </div>
 
     @if (analytics != null)
     {
-        <!-- Desktop Full Analytics Bar -->
-        <div class="analytics-bar hide-on-mobile show-on-desktop-grid">
+        <div class="analytics-bar">
             <div class="metric-card">
                 <span>Total Tickets</span>
                 <strong>@analytics.Summary.TotalAppointments</strong>
@@ -43,29 +42,9 @@
             </div>
         </div>
 
-        <!-- Minimalist Mobile Quick Stats -->
-        <div class="mobile-quick-stats show-on-mobile-flex hide-on-desktop">
-            <div class="mobile-stat-pill">
-                <span class="stat-dot waiting"></span>
-                <span class="stat-label">Active:</span>
-                <strong>@analytics.Summary.ActiveQueue</strong>
-            </div>
-            <div class="mobile-stat-pill">
-                <span class="stat-dot served"></span>
-                <span class="stat-label">Served:</span>
-                <strong>@analytics.StatusBreakdown.ServedToday</strong>
-            </div>
-            <div class="mobile-stat-pill">
-                <span class="stat-dot wait"></span>
-                <span class="stat-label">Wait:</span>
-                <strong>@analytics.Summary.AverageWaitMinutes m</strong>
-            </div>
-        </div>
-
         @if (analytics.ServiceDistribution.Count > 0 || analytics.StatusBreakdown.Waiting + analytics.StatusBreakdown.Called + analytics.StatusBreakdown.Serving > 0)
         {
-            <!-- Heavy Breakdown Tables Hidden on Mobile -->
-            <div class="analytics-panels hide-on-mobile show-on-desktop-grid">
+            <div class="analytics-panels">
                 @if (analytics.ServiceDistribution.Count > 0)
                 {
                     var maxCount = analytics.ServiceDistribution.Max(s => s.Count);
@@ -136,7 +115,7 @@
         }
     }
 
-    <div class="page-header" style="margin-top:1.25rem; margin-bottom:0.75rem;">
+    <div class="page-header" style="margin-top:1.5rem; margin-bottom:0.75rem;">
         <div>
             <p class="eyebrow">Live</p>
             <h3 style="font-size:1.1rem">Current Queue</h3>
@@ -152,8 +131,7 @@
     }
     else
     {
-        <!-- Desktop Queue Table -->
-        <div class="desk-layout hide-on-mobile show-on-desktop">
+        <div class="desk-layout">
             <div class="table-wrap">
                 <table class="table table-modern">
                 <thead>
@@ -190,32 +168,6 @@
                     </tbody>
                 </table>
             </div>
-        </div>
-
-        <!-- Minimalist Mobile Queue Cards -->
-        <div class="mobile-queue-list show-on-mobile hide-on-desktop">
-            @foreach (var item in queueItems)
-            {
-                <div class="mobile-ticket-card @(selectedItem?.Id == item.Id ? "selected-card" : "")" @onclick="() => SelectItem(item)">
-                    <div class="mobile-ticket-header">
-                        <span class="mobile-ticket-code">@item.QueueCode</span>
-                        <div class="mobile-ticket-meta">
-                            <span class="timer-badge">@GetQueueTimer(item)</span>
-                            <span class="status-badge status-@item.Status.ToString().ToLower()">@GetStatusLabel(item.Status)</span>
-                        </div>
-                    </div>
-                    <div class="mobile-ticket-info">
-                        <span class="mobile-cust-name">@item.CustomerName</span>
-                        <span class="mobile-svc-tag">@item.ServiceName</span>
-                    </div>
-                    <div class="mobile-ticket-actions">
-                        <button class="btn btn-primary btn-sm" @onclick:stopPropagation="true" @onclick='() => AdvanceQueue(item.Id, "call")'>Call</button>
-                        <button class="btn btn-success btn-sm" @onclick:stopPropagation="true" @onclick='() => AdvanceQueue(item.Id, "serve")'>Serve</button>
-                        <button class="btn btn-secondary btn-sm" @onclick:stopPropagation="true" @onclick='() => AdvanceQueue(item.Id, "skip")'>Skip</button>
-                        <button class="btn btn-warning btn-sm" @onclick:stopPropagation="true" @onclick='() => AdvanceQueue(item.Id, "recall")'>Recall</button>
-                    </div>
-                </div>
-            }
         </div>
     }
 </div>
@@ -259,11 +211,6 @@
             return;
         }
 
-        if (Http.DefaultRequestHeaders.Authorization == null)
-        {
-            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("bearer", token);
-        }
-
         timerCancellation = new CancellationTokenSource();
         _ = StartTimerLoopAsync(timerCancellation.Token);
         await LoadAllAsync();
@@ -297,20 +244,8 @@
 
     private async Task LoadQueueAsync()
     {
-        try
-        {
-            queueItems = await Http.GetFromJsonAsync<List<QueueViewItem>>("staff/queue") ?? new();
-            selectedItem ??= queueItems.FirstOrDefault();
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-        {
-            await LocalStorage.RemoveItemAsync("authToken");
-            Navigation.NavigateTo("/", replace: true);
-        }
-        catch
-        {
-            queueItems = new();
-        }
+        queueItems = await Http.GetFromJsonAsync<List<QueueViewItem>>("staff/queue") ?? new();
+        selectedItem ??= queueItems.FirstOrDefault();
     }
 
     private async Task LoadAnalyticsAsync()
@@ -337,24 +272,16 @@
 
     private async Task AdvanceQueue(int appointmentId, string action)
     {
-        try
+        string endpoint = action switch
         {
-            string endpoint = action switch
-            {
-                "call" => $"staff/queue/{appointmentId}/call",
-                "serve" => $"staff/queue/{appointmentId}/serve",
-                "recall" => $"staff/queue/{appointmentId}/recall",
-                _ => $"staff/queue/{appointmentId}/skip"
-            };
+            "call" => $"staff/queue/{appointmentId}/call",
+            "serve" => $"staff/queue/{appointmentId}/serve",
+            "recall" => $"staff/queue/{appointmentId}/recall",
+            _ => $"staff/queue/{appointmentId}/skip"
+        };
 
-            await Http.PostAsync(endpoint, null);
-            await LoadAllAsync();
-        }
-        catch
-        {
-            // Suppress error banner and refresh gracefully
-            await LoadAllAsync();
-        }
+        await Http.PostAsync(endpoint, null);
+        await LoadAllAsync();
     }
 
     private static string GetStatusLabel(AppointmentStatus status)
