@@ -44,6 +44,29 @@ public class CloudflareD1ClientTests
     }
 
     [Fact]
+    public async Task QueryBatchAsync_ReturnsEachResultSetFromOneRequest()
+    {
+        var requestCount = 0;
+        var handler = new StubHandler(_ =>
+        {
+            requestCount++;
+            return JsonResponse("{\"success\":true,\"result\":[{\"success\":true,\"results\":[{\"Value\":1}]},{\"success\":true,\"results\":[{\"Value\":2}]}]}");
+        });
+        var d1 = new CloudflareD1Client(CreateClient(handler), Configuration());
+
+        var result = await d1.QueryBatchAsync<HealthRow>(new[]
+        {
+            new D1Statement("SELECT 1 AS Value", Array.Empty<object?>()),
+            new D1Statement("SELECT 2 AS Value", Array.Empty<object?>())
+        });
+
+        Assert.Equal(1, requestCount);
+        Assert.Equal(2, result.Count);
+        Assert.Equal(1, result[0][0].Value);
+        Assert.Equal(2, result[1][0].Value);
+    }
+
+    [Fact]
     public async Task QueryAsync_ThrowsForCloudflareErrors()
     {
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)

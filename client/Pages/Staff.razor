@@ -3,8 +3,6 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @implements IDisposable
-@using System.Text.Json
-@using System.Text.Json.Serialization
 
 <PageTitle>Service Desk</PageTitle>
 
@@ -219,31 +217,7 @@
     private List<QueueViewItem> queueItems = new();
     private QueueViewItem? selectedItem;
     private CancellationTokenSource? timerCancellation;
-    private StaffAnalytics? analytics;
-
-    private class StaffAnalytics
-    {
-        [JsonPropertyName("summary")]
-        public DashboardSummary Summary { get; set; } = new();
-        [JsonPropertyName("serviceDistribution")]
-        public List<ServiceDistributionItem> ServiceDistribution { get; set; } = new();
-        [JsonPropertyName("statusBreakdown")]
-        public StatusBreakdownData StatusBreakdown { get; set; } = new();
-    }
-
-    private class StatusBreakdownData
-    {
-        [JsonPropertyName("waiting")]
-        public int Waiting { get; set; }
-        [JsonPropertyName("called")]
-        public int Called { get; set; }
-        [JsonPropertyName("serving")]
-        public int Serving { get; set; }
-        [JsonPropertyName("servedToday")]
-        public int ServedToday { get; set; }
-        [JsonPropertyName("missedToday")]
-        public int MissedToday { get; set; }
-    }
+    private StaffAnalyticsResponse? analytics;
 
     protected override async Task OnInitializedAsync()
     {
@@ -254,7 +228,7 @@
 
     private async Task StartTimerLoopAsync(CancellationToken token)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
         try
         {
             while (await timer.WaitForNextTickAsync(token))
@@ -275,25 +249,10 @@
 
     private async Task LoadAllAsync()
     {
-        await Task.WhenAll(LoadQueueAsync(), LoadAnalyticsAsync());
-    }
-
-    private async Task LoadQueueAsync()
-    {
-        queueItems = await Http.GetFromJsonAsync<List<QueueViewItem>>("staff/queue") ?? new();
+        var dashboard = await Http.GetFromJsonAsync<StaffDashboardResponse>("staff/dashboard-view");
+        queueItems = dashboard?.Queue ?? new();
+        analytics = dashboard?.Analytics;
         selectedItem ??= queueItems.FirstOrDefault();
-    }
-
-    private async Task LoadAnalyticsAsync()
-    {
-        try
-        {
-            analytics = await Http.GetFromJsonAsync<StaffAnalytics>("staff/analytics");
-        }
-        catch
-        {
-            analytics = null;
-        }
     }
 
     private void SelectItem(QueueViewItem item)

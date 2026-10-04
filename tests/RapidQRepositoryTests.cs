@@ -82,6 +82,38 @@ public class RapidQRepositoryTests
         Assert.Contains("RETURNING", query, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task StaffDashboard_LoadsQueueAndAnalyticsInOneD1Batch()
+    {
+        var requestCount = 0;
+        var handler = new StubHandler(async request =>
+        {
+            requestCount++;
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal(4, body.RootElement.GetProperty("batch").GetArrayLength());
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    "{\"success\":true,\"result\":[" +
+                    "{\"success\":true,\"results\":[{\"Id\":8,\"QueueNumber\":1,\"QueueCode\":\"TE-0001\",\"CustomerName\":\"A\",\"CustomerEmail\":\"\",\"CustomerPhone\":\"\",\"ServiceName\":\"Teller\",\"BranchName\":\"Main\",\"TimeSlot\":\"09:00\",\"AppointmentDate\":\"2026-10-04\",\"Status\":0,\"CreatedAt\":\"2026-10-04T08:30:00Z\",\"CalledAt\":null}]}," +
+                    "{\"success\":true,\"results\":[{\"TotalAppointments\":80,\"ActiveQueue\":1,\"StaffCallsToday\":1,\"ServicesAvailable\":6}]}," +
+                    "{\"success\":true,\"results\":[{\"Waiting\":1,\"Called\":0,\"Serving\":0,\"ServedToday\":3,\"MissedToday\":1}]}," +
+                    "{\"success\":true,\"results\":[{\"ServiceName\":\"Teller\",\"Count\":20}]}]}",
+                    Encoding.UTF8,
+                    "application/json")
+            };
+        });
+        var repository = CreateRepository(handler);
+
+        var dashboard = await repository.GetStaffDashboardAsync();
+
+        Assert.Equal(1, requestCount);
+        Assert.Single(dashboard.Queue);
+        Assert.Equal(80, dashboard.Analytics.Summary.TotalAppointments);
+        Assert.Equal(1, dashboard.Analytics.StatusBreakdown.Waiting);
+        Assert.Equal("Teller", Assert.Single(dashboard.Analytics.ServiceDistribution).ServiceName);
+    }
+
     private static RapidQRepository CreateRepository(HttpMessageHandler handler)
     {
         var configuration = new ConfigurationBuilder()

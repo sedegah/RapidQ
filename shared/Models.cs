@@ -139,6 +139,28 @@ public class AdminAnalyticsResponse
     public List<ServiceDistributionItem> ServiceDistribution { get; set; } = new();
 }
 
+public class StaffAnalyticsResponse
+{
+    public DashboardSummary Summary { get; set; } = new();
+    public List<ServiceDistributionItem> ServiceDistribution { get; set; } = new();
+    public QueueStatusBreakdown StatusBreakdown { get; set; } = new();
+}
+
+public class QueueStatusBreakdown
+{
+    public int Waiting { get; set; }
+    public int Called { get; set; }
+    public int Serving { get; set; }
+    public int ServedToday { get; set; }
+    public int MissedToday { get; set; }
+}
+
+public class StaffDashboardResponse
+{
+    public List<QueueViewItem> Queue { get; set; } = new();
+    public StaffAnalyticsResponse Analytics { get; set; } = new();
+}
+
 public class TrackResponse
 {
     public string QueueCode { get; set; } = string.Empty;

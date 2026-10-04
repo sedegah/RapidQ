@@ -65,6 +65,32 @@ public sealed class CloudflareD1Client
         }
     }
 
+    public async Task<List<List<T>>> QueryBatchAsync<T>(IReadOnlyList<D1Statement> statements, CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PostAsJsonAsync(
+            "query",
+            new D1BatchQuery(statements.Select(statement => new D1Query(statement.Sql, NormalizeParameters(statement.Parameters))).ToArray()),
+            _jsonOptions,
+            cancellationToken);
+        using var document = await ReadResponseAsync(response, cancellationToken);
+        if (!document.RootElement.TryGetProperty("result", out var results) || results.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidOperationException("Cloudflare D1 returned no batch result.");
+        }
+
+        return results.EnumerateArray().Select(statement =>
+        {
+            if (statement.TryGetProperty("success", out var success) && !success.GetBoolean())
+            {
+                throw new InvalidOperationException("A Cloudflare D1 batch query failed.");
+            }
+
+            return statement.TryGetProperty("results", out var rows) && rows.ValueKind == JsonValueKind.Array
+                ? rows.Deserialize<List<T>>(_jsonOptions) ?? new List<T>()
+                : new List<T>();
+        }).ToList();
+    }
+
     private static async Task<JsonDocument> ReadResponseAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);

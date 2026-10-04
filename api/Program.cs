@@ -229,6 +229,7 @@ clientApi.MapGet("/track/{queueCode}", async (string queueCode, RapidQRepository
 staffApi.MapGet("/queue", (RapidQRepository repository, CancellationToken ct) => repository.GetQueueAsync(ct));
 staffApi.MapGet("/dashboard", (RapidQRepository repository, CancellationToken ct) => repository.GetDashboardAsync(ct));
 staffApi.MapGet("/analytics", (RapidQRepository repository, CancellationToken ct) => repository.GetStaffAnalyticsAsync(ct));
+staffApi.MapGet("/dashboard-view", (RapidQRepository repository, CancellationToken ct) => repository.GetStaffDashboardAsync(ct));
 staffApi.MapGet("/history", (RapidQRepository repository, CancellationToken ct) => repository.GetHistoryAsync(ct));
 
 MapTicketAction("call");

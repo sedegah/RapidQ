@@ -11,6 +11,8 @@ out/
 *.db
 *.sqlite
 *.log
+*.sql
+!api/migrations/*.sql
 .env
 
 .DS_Store
@@ -39,5 +41,3 @@ test-client-publish/
 api/.env
 api/.env.*
 !api/.env.example
-rapidq-import.sql
-rapidq-demo-transactions.sql

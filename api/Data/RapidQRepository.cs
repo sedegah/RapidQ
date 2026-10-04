@@ -163,6 +163,62 @@ public sealed class RapidQRepository
             "FROM tickets t JOIN services s ON s.id = t.service_id JOIN branches b ON b.id = t.branch_id " +
             "WHERE t.status NOT IN (3, 4) ORDER BY t.queue_number", ct);
 
+    public async Task<StaffDashboardResponse> GetStaffDashboardAsync(CancellationToken ct = default)
+    {
+        var statements = new D1Statement[]
+        {
+            new(
+                "SELECT t.id AS Id, t.queue_number AS QueueNumber, t.queue_code AS QueueCode, t.customer_name AS CustomerName, " +
+                "t.customer_email AS CustomerEmail, t.customer_phone AS CustomerPhone, s.name AS ServiceName, b.name AS BranchName, " +
+                "t.time_slot AS TimeSlot, t.appointment_date AS AppointmentDate, t.status AS Status, t.created_at AS CreatedAt, t.called_at AS CalledAt " +
+                "FROM tickets t JOIN services s ON s.id = t.service_id JOIN branches b ON b.id = t.branch_id " +
+                "WHERE t.status NOT IN (3, 4) ORDER BY t.queue_number",
+                Array.Empty<object?>()),
+            new(
+                "SELECT COUNT(*) AS TotalAppointments, " +
+                "COALESCE(SUM(CASE WHEN status NOT IN (3, 4) THEN 1 ELSE 0 END), 0) AS ActiveQueue, " +
+                "COALESCE(SUM(CASE WHEN status IN (1, 2) THEN 1 ELSE 0 END), 0) AS StaffCallsToday, " +
+                "(SELECT COUNT(*) FROM services) AS ServicesAvailable " +
+                "FROM tickets",
+                Array.Empty<object?>()),
+            new(
+                "SELECT COALESCE(SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END), 0) AS Waiting, " +
+                "COALESCE(SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END), 0) AS Called, " +
+                "COALESCE(SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END), 0) AS Serving, " +
+                "COALESCE(SUM(CASE WHEN status = 3 AND substr(created_at, 1, 10) = strftime('%Y-%m-%d', 'now') THEN 1 ELSE 0 END), 0) AS ServedToday, " +
+                "COALESCE(SUM(CASE WHEN status = 4 AND substr(created_at, 1, 10) = strftime('%Y-%m-%d', 'now') THEN 1 ELSE 0 END), 0) AS MissedToday " +
+                "FROM tickets",
+                Array.Empty<object?>()),
+            new(
+                "SELECT s.name AS ServiceName, COUNT(t.id) AS Count FROM services s " +
+                "LEFT JOIN tickets t ON t.service_id = s.id GROUP BY s.id, s.name ORDER BY Count DESC, s.name",
+                Array.Empty<object?>())
+        };
+
+        var results = await _d1.QueryBatchAsync<JsonElement>(statements, ct);
+        var queue = results.ElementAtOrDefault(0)?.Select(row => JsonSerializer.Deserialize<QueueViewItem>(row, new JsonSerializerOptions(JsonSerializerDefaults.Web))!).ToList() ?? new();
+        var summaryRow = results.ElementAtOrDefault(1)?.FirstOrDefault();
+        var statusRow = results.ElementAtOrDefault(2)?.FirstOrDefault();
+        var distribution = results.ElementAtOrDefault(3)?.Select(row => JsonSerializer.Deserialize<ServiceDistributionItem>(row, new JsonSerializerOptions(JsonSerializerDefaults.Web))!).ToList() ?? new();
+
+        var summary = summaryRow is null ? new DashboardSummary() :
+            JsonSerializer.Deserialize<DashboardSummary>(summaryRow.Value, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? new();
+        var statuses = statusRow is null ? new QueueStatusBreakdown() :
+            JsonSerializer.Deserialize<QueueStatusBreakdown>(statusRow.Value, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? new();
+        summary.AverageWaitMinutes = summary.ActiveQueue == 0 ? 0 : Math.Max(5, summary.ActiveQueue * 7);
+
+        return new StaffDashboardResponse
+        {
+            Queue = queue,
+            Analytics = new StaffAnalyticsResponse
+            {
+                Summary = summary,
+                ServiceDistribution = distribution,
+                StatusBreakdown = statuses
+            }
+        };
+    }
+
     public async Task<List<AppointmentHistoryItem>> GetHistoryAsync(CancellationToken ct = default)
     {
         var rows = await _d1.QueryAsync<HistoryRow>(
