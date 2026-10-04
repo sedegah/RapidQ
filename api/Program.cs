@@ -27,7 +27,6 @@ static string GenerateQueueCode(int queueNumber, string serviceCode)
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Render injects PORT; fall back to 8080 for other container environments.
 var portEnv = Environment.GetEnvironmentVariable("PORT");
 var listenPort = !string.IsNullOrWhiteSpace(portEnv) ? portEnv : "8080";
 builder.WebHost.UseUrls($"http://0.0.0.0:{listenPort}");
@@ -236,6 +235,11 @@ clientApi.MapPost("/tickets", async (CreateAppointmentRequest request, QueueDbCo
         return Results.BadRequest("Customer phone number is required.");
     }
 
+    if (!PhoneNumberValidation.IsValid(request.CustomerPhone))
+    {
+        return Results.BadRequest("Customer phone number must contain exactly 10 digits.");
+    }
+
     if (request.ServiceId <= 0)
     {
         return Results.BadRequest("A valid service is required.");
@@ -311,11 +315,8 @@ clientApi.MapGet("/track/{queueCode}", async (string queueCode, QueueDbContext d
 
     if (appointment is null) return Results.NotFound();
 
-    var activeStatuses = new[] { AppointmentStatus.Waiting, AppointmentStatus.Called, AppointmentStatus.Serving };
-    var peopleAhead = await db.Appointments.CountAsync(a =>
-        activeStatuses.Contains(a.Status) &&
-        a.ServiceId == appointment.ServiceId &&
-        a.QueueNumber < appointment.QueueNumber);
+    var peopleAhead = await db.Appointments.CountAsync(
+        QueuePositionCalculator.PeopleAheadPredicate(appointment));
 
     return Results.Ok(new TrackResponse
     {
@@ -382,7 +383,6 @@ staffApi.MapGet("/analytics", async (QueueDbContext db) =>
         .OrderByDescending(x => x.Count)
         .ToList();
 
-    // Status breakdown of active queue
     var statusBreakdown = new
     {
         Waiting = appointments.Count(a => a.Status == AppointmentStatus.Waiting),

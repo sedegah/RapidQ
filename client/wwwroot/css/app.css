@@ -749,7 +749,6 @@ p {
     }
 }
 
-/* Analytics */
 .analytics-bar {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -802,7 +801,6 @@ p {
     }
 }
 
-/* Kiosk service buttons */
 .kiosk-services {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -843,9 +841,6 @@ p {
     color: var(--muted);
 }
 
-/* ==========================================================================
-   Real-Time Ticket Tracking & Kiosk Dark Theme
-   ========================================================================== */
 .track-card {
     background: var(--panel);
     border: 1px solid var(--border);
@@ -933,7 +928,6 @@ p {
     display: inline-block;
 }
 
-/* Waiting State */
 .track-alert-waiting {
     background: rgba(44, 93, 153, 0.22);
     border: 1px solid rgba(44, 93, 153, 0.6);
@@ -943,7 +937,6 @@ p {
     box-shadow: 0 0 8px rgba(88, 166, 255, 0.8);
 }
 
-/* Called State */
 .track-alert-called {
     background: rgba(212, 166, 77, 0.2);
     border: 2px solid var(--warning);
@@ -967,7 +960,6 @@ p {
     }
 }
 
-/* Serving State */
 .track-alert-serving {
     background: rgba(45, 138, 104, 0.22);
     border: 1px solid var(--success);
@@ -977,7 +969,6 @@ p {
     box-shadow: 0 0 8px rgba(63, 185, 80, 0.8);
 }
 
-/* Completed State */
 .track-alert-completed {
     background: var(--panel-alt);
     border: 1px solid var(--border);
@@ -986,7 +977,6 @@ p {
     background: var(--muted);
 }
 
-/* Missed State */
 .track-alert-missed {
     background: rgba(199, 93, 93, 0.22);
     border: 1px solid var(--danger);
@@ -1025,7 +1015,6 @@ p {
     display: inline-block;
 }
 
-/* Global Bootstrap dark card override */
 .card {
     background-color: var(--panel) !important;
     border: 1px solid var(--border) !important;
@@ -1045,10 +1034,6 @@ p {
     color: var(--text) !important;
 }
 
-/* ==========================================================================
-   Minimalist Mobile Styles
-   ========================================================================== */
-
 @media (max-width: 767.98px) {
     .hide-on-mobile { display: none !important; }
     .show-on-mobile { display: block !important; }
@@ -1061,7 +1046,6 @@ p {
     .show-on-desktop-grid { display: grid !important; }
 }
 
-/* Mobile Quick Stats Pills */
 .mobile-quick-stats {
     display: flex;
     gap: 0.5rem;
@@ -1091,7 +1075,6 @@ p {
 .mobile-stat-pill .stat-dot.served  { background: #3fb950; }
 .mobile-stat-pill .stat-dot.wait    { background: #d4a64d; }
 
-/* Mobile Ticket / History Cards */
 .mobile-queue-list,
 .mobile-history-list {
     display: flex;
@@ -1192,7 +1175,6 @@ p {
     min-height: 38px;
 }
 
-/* Keep the existing visual theme while scaling layouts for phones and tablets. */
 @media (max-width: 768px) {
     html,
     body,

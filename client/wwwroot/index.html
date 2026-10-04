@@ -63,7 +63,6 @@
     </div>
 
     <script>
-        // Show an actionable error if Blazor hasn't booted within 30s
         var _bootTimer = setTimeout(function () {
             var loader = document.getElementById('blazor-loader');
             if (loader) {
@@ -74,7 +73,6 @@
             }
         }, 30000);
 
-        // Clear the timer once Blazor replaces the #app div
         var _appEl = document.getElementById('app');
         if (_appEl) {
             var _obs = new MutationObserver(function () {

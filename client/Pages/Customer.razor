@@ -22,7 +22,6 @@
         <div class="alert alert-danger">@errorMessage</div>
     }
 
-    @* ── Ticket Confirmation ── *@
     @if (!string.IsNullOrWhiteSpace(ticketCode))
     {
         <div class="ticket-box">
@@ -41,7 +40,6 @@
     }
     else
     {
-        @* ── Kiosk Form ── *@
         <div class="customer-shell">
             <div class="customer-panel">
                 <div class="panel-header">
@@ -88,7 +86,7 @@
 
                             <div class="field-group">
                                 <label class="form-label">Phone Number</label>
-                                <InputText class="form-control" placeholder="e.g. 071 234 5678" @bind-Value="model.CustomerPhone" />
+                                <InputText class="form-control" type="tel" inputmode="numeric" minlength="10" maxlength="10" pattern="[0-9]{10}" required title="Enter exactly 10 digits without spaces or symbols." placeholder="e.g. 0712345678" @bind-Value="model.CustomerPhone" />
                             </div>
 
                             <div class="field-group">
@@ -273,9 +271,9 @@
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(model.CustomerPhone))
+        if (!PhoneNumberValidation.IsValid(model.CustomerPhone))
         {
-            errorMessage = "Please enter a phone number.";
+            errorMessage = "Please enter a phone number containing exactly 10 digits.";
             isSubmitting = false;
             return;
         }
