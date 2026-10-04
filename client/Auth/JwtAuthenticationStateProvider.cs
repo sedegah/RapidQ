@@ -46,9 +46,11 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
         }
     }
 
-    public void MarkUserAsAuthenticated(string email)
+    public void MarkUserAsAuthenticated(string token)
     {
-        var authenticatedUser = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, email) }, "jwt"));
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", token);
+        var claims = ParseClaimsFromJwt(token).ToList();
+        var authenticatedUser = new ClaimsPrincipal(new ClaimsIdentity(claims, "jwt"));
         var authState = Task.FromResult(new AuthenticationState(authenticatedUser));
         NotifyAuthenticationStateChanged(authState);
     }
@@ -71,34 +73,69 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
 
             var payload = parts[1];
             var jsonBytes = ParseBase64WithoutPadding(payload);
-            var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
+            using var doc = JsonDocument.Parse(jsonBytes);
+            var root = doc.RootElement;
 
-            if (keyValuePairs != null)
+            foreach (var prop in root.EnumerateObject())
             {
-                keyValuePairs.TryGetValue(ClaimTypes.Role, out object? roles);
+                var key = prop.Name;
 
-                if (roles != null)
+                if (key.Equals("role", StringComparison.OrdinalIgnoreCase) ||
+                    key.Equals(ClaimTypes.Role, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (roles.ToString()!.Trim().StartsWith("["))
+                    if (prop.Value.ValueKind == JsonValueKind.Array)
                     {
-                        var parsedRoles = JsonSerializer.Deserialize<string[]>(roles.ToString()!);
-                        if (parsedRoles != null)
+                        foreach (var elem in prop.Value.EnumerateArray())
                         {
-                            foreach (var parsedRole in parsedRoles)
+                            var r = elem.GetString();
+                            if (!string.IsNullOrWhiteSpace(r))
                             {
-                                claims.Add(new Claim(ClaimTypes.Role, parsedRole));
+                                claims.Add(new Claim(ClaimTypes.Role, r));
                             }
                         }
                     }
                     else
                     {
-                        claims.Add(new Claim(ClaimTypes.Role, roles.ToString()!));
+                        var r = prop.Value.GetString();
+                        if (!string.IsNullOrWhiteSpace(r))
+                        {
+                            claims.Add(new Claim(ClaimTypes.Role, r));
+                        }
                     }
-
-                    keyValuePairs.Remove(ClaimTypes.Role);
+                    continue;
                 }
 
-                claims.AddRange(keyValuePairs.Select(kvp => new Claim(kvp.Key, kvp.Value.ToString() ?? string.Empty)));
+                if (key.Equals("name", StringComparison.OrdinalIgnoreCase) ||
+                    key.Equals("unique_name", StringComparison.OrdinalIgnoreCase) ||
+                    key.Equals(ClaimTypes.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    var n = prop.Value.GetString();
+                    if (!string.IsNullOrWhiteSpace(n))
+                    {
+                        claims.Add(new Claim(ClaimTypes.Name, n));
+                    }
+                    continue;
+                }
+
+                if (key.Equals("email", StringComparison.OrdinalIgnoreCase) ||
+                    key.Equals(ClaimTypes.Email, StringComparison.OrdinalIgnoreCase))
+                {
+                    var em = prop.Value.GetString();
+                    if (!string.IsNullOrWhiteSpace(em))
+                    {
+                        claims.Add(new Claim(ClaimTypes.Email, em));
+                    }
+                    continue;
+                }
+
+                if (prop.Value.ValueKind == JsonValueKind.String)
+                {
+                    claims.Add(new Claim(key, prop.Value.GetString() ?? string.Empty));
+                }
+                else
+                {
+                    claims.Add(new Claim(key, prop.Value.ToString() ?? string.Empty));
+                }
             }
 
             return claims;
