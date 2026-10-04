@@ -35,6 +35,8 @@ command.md
 
 # Publish test output
 client-publish-test/
+test-publish/
+test-client-publish/
 
 # SQLite WAL files
 *.db-shm
