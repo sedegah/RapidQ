@@ -23,10 +23,11 @@ WORKDIR /app
 # Do NOT set ASPNETCORE_URLS here — Render injects PORT and Program.cs binds to it.
 # Hardcoding this env var would conflict and the app would not listen on Render's port.
 ENV ASPNETCORE_ENVIRONMENT=Production
+ENV RAPIDQ_DB_PATH=/var/data/QueueManagement.db
 
 COPY --from=build /app/publish .
 
-# Ensure the SQLite storage directory exists
-RUN mkdir -p /app/storage
+# Ensure the SQLite database mount point exists
+RUN mkdir -p /var/data
 
 ENTRYPOINT ["dotnet", "QueueManagement.Api.dll"]

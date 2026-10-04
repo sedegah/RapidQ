@@ -8,7 +8,12 @@ public static class DatabasePathProvider
         var envPath = Environment.GetEnvironmentVariable("RAPIDQ_DB_PATH");
         if (!string.IsNullOrWhiteSpace(envPath))
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(envPath)!);
+            var directory = Path.GetDirectoryName(envPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
             return envPath;
         }
 

@@ -32,3 +32,11 @@ RapidQ is built to support a modern service desk where customers feel informed, 
 
 ![alt text](image.png)
 ![alt text](image-1.png)
+
+## Hosted database persistence
+
+RapidQ uses SQLite. The Docker images store the database at `/var/data/QueueManagement.db`, which must be backed by persistent storage in production; a container's writable filesystem is temporary and can be replaced during deploys or restarts.
+
+For Render, attach a **persistent disk** to the API service with mount path `/var/data` (for example, 1 GB) and set `RAPIDQ_DB_PATH` to `/var/data/QueueManagement.db`. Then redeploy the service. The disk must remain attached to preserve tickets and user accounts; the app cannot create a persistent disk on the hosting provider by itself. On other hosts, mount a persistent volume at `/var/data` or set `RAPIDQ_DB_PATH` to a file on the host's persistent volume. `docker compose` already uses a named volume at this location for local/container deployments.
+
+SQLite on a single persistent disk is intended for one API instance. Back up the disk regularly; deleting or replacing it without restoring a backup will lose the database.

@@ -24,10 +24,11 @@ WORKDIR /app
 # injected by Render (or similar platforms) takes effect via Program.cs.
 # A default of 8080 is only used if PORT is also unset.
 ENV ASPNETCORE_ENVIRONMENT=Production
+ENV RAPIDQ_DB_PATH=/var/data/QueueManagement.db
 
 COPY --from=build /app/publish .
 
-# Ensure storage directory exists for SQLite database
-RUN mkdir -p /app/storage
+# Ensure the SQLite database mount point exists
+RUN mkdir -p /var/data
 
 ENTRYPOINT ["dotnet", "QueueManagement.Api.dll"]
