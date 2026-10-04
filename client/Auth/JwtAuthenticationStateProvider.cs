@@ -1,121 +1,63 @@
-using System.Net.Http.Headers;
 using System.Security.Claims;
-using System.Text.Json;
-using Blazored.LocalStorage;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Components.Authorization;
+using QueueManagement.Shared;
 
 namespace QueueManagement.Client.Auth;
 
 public class JwtAuthenticationStateProvider : AuthenticationStateProvider
 {
     private readonly HttpClient _httpClient;
-    private readonly ILocalStorageService _localStorage;
+    private AuthenticationState _currentState = new(new ClaimsPrincipal(new ClaimsIdentity()));
 
-    public JwtAuthenticationStateProvider(HttpClient httpClient, ILocalStorageService localStorage)
-    {
-        _httpClient = httpClient;
-        _localStorage = localStorage;
-    }
+    public JwtAuthenticationStateProvider(HttpClient httpClient) => _httpClient = httpClient;
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
         try
         {
-            var savedToken = await _localStorage.GetItemAsync<string>("authToken");
-
-            if (string.IsNullOrWhiteSpace(savedToken))
+            using var response = await _httpClient.GetAsync("auth/me");
+            if (!response.IsSuccessStatusCode)
             {
-                return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
+                _currentState = AnonymousState();
+                return _currentState;
             }
 
-            var claims = ParseClaimsFromJwt(savedToken).ToList();
-            if (!claims.Any())
+            var currentUser = await response.Content.ReadFromJsonAsync<CurrentUserResponse>();
+            if (currentUser is null || string.IsNullOrWhiteSpace(currentUser.Email))
             {
-                await _localStorage.RemoveItemAsync("authToken");
-                return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
+                _currentState = AnonymousState();
+                return _currentState;
             }
 
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", savedToken);
-
-            return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(claims, "jwt")));
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.Name, currentUser.Email),
+                new(ClaimTypes.Email, currentUser.Email)
+            };
+            claims.AddRange(currentUser.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
+            _currentState = new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(claims, "cookie")));
         }
         catch
         {
-            try { await _localStorage.RemoveItemAsync("authToken"); } catch { }
-            return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
+            _currentState = AnonymousState();
         }
+
+        return _currentState;
     }
 
-    public void MarkUserAsAuthenticated(string email)
+    public async Task RefreshAuthenticationStateAsync()
     {
-        var authenticatedUser = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, email) }, "jwt"));
-        var authState = Task.FromResult(new AuthenticationState(authenticatedUser));
-        NotifyAuthenticationStateChanged(authState);
+        _currentState = await GetAuthenticationStateAsync();
+        NotifyAuthenticationStateChanged(Task.FromResult(_currentState));
     }
 
     public void MarkUserAsLoggedOut()
     {
-        _httpClient.DefaultRequestHeaders.Authorization = null;
-        var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
-        var authState = Task.FromResult(new AuthenticationState(anonymousUser));
-        NotifyAuthenticationStateChanged(authState);
+        _currentState = AnonymousState();
+        NotifyAuthenticationStateChanged(Task.FromResult(_currentState));
     }
 
-    private IEnumerable<Claim> ParseClaimsFromJwt(string jwt)
-    {
-        try
-        {
-            var claims = new List<Claim>();
-            var parts = jwt.Split('.');
-            if (parts.Length < 2) return claims;
-
-            var payload = parts[1];
-            var jsonBytes = ParseBase64WithoutPadding(payload);
-            var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
-
-            if (keyValuePairs != null)
-            {
-                keyValuePairs.TryGetValue(ClaimTypes.Role, out object? roles);
-
-                if (roles != null)
-                {
-                    if (roles.ToString()!.Trim().StartsWith("["))
-                    {
-                        var parsedRoles = JsonSerializer.Deserialize<string[]>(roles.ToString()!);
-                        if (parsedRoles != null)
-                        {
-                            foreach (var parsedRole in parsedRoles)
-                            {
-                                claims.Add(new Claim(ClaimTypes.Role, parsedRole));
-                            }
-                        }
-                    }
-                    else
-                    {
-                        claims.Add(new Claim(ClaimTypes.Role, roles.ToString()!));
-                    }
-
-                    keyValuePairs.Remove(ClaimTypes.Role);
-                }
-
-                claims.AddRange(keyValuePairs.Select(kvp => new Claim(kvp.Key, kvp.Value.ToString() ?? string.Empty)));
-            }
-
-            return claims;
-        }
-        catch
-        {
-            return Enumerable.Empty<Claim>();
-        }
-    }
-
-    private byte[] ParseBase64WithoutPadding(string base64)
-    {
-        switch (base64.Length % 4)
-        {
-            case 2: base64 += "=="; break;
-            case 3: base64 += "="; break;
-        }
-        return Convert.FromBase64String(base64);
-    }
+    private static AuthenticationState AnonymousState() =>
+        new(new ClaimsPrincipal(new ClaimsIdentity()));
 }

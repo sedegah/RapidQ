@@ -11,6 +11,7 @@ out/
 *.db
 *.sqlite
 *.log
+.env
 
 .DS_Store
 Thumbs.db
@@ -32,3 +33,10 @@ test-client-publish/
 
 *.db-shm
 *.db-wal
+.env
+.env.*
+!.env.example
+api/.env
+api/.env.*
+!api/.env.example
+rapidq-import.sql

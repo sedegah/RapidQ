@@ -1,7 +1,7 @@
 ﻿@page "/history"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Staff,Admin")]
 @inject HttpClient Http
 @inject NavigationManager Navigation
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 
 <PageTitle>Transaction History</PageTitle>
 
@@ -124,18 +124,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var token = await LocalStorage.GetItemAsync<string>("authToken");
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            Navigation.NavigateTo("/", replace: true);
-            return;
-        }
-
-        if (Http.DefaultRequestHeaders.Authorization == null)
-        {
-            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("bearer", token);
-        }
-
         try
         {
             history = await Http.GetFromJsonAsync<List<AppointmentHistoryItem>>("staff/history") ?? new();

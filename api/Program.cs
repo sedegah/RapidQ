@@ -1,52 +1,31 @@
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
-using QueueManagement.Api;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.IdentityModel.Tokens;
 using QueueManagement.Api.Data;
 using QueueManagement.Api.Hubs;
 using QueueManagement.Shared;
 
-static string GenerateQueueCode(int queueNumber, string serviceCode)
-{
-    var prefix = string.IsNullOrWhiteSpace(serviceCode)
-        ? "GE"
-        : serviceCode.Trim().ToUpperInvariant().Replace("-", string.Empty);
-
-    if (prefix.Length < 2)
-    {
-        prefix = prefix.PadRight(2, 'X');
-    }
-
-    return $"{prefix.Substring(0, 2)}-{queueNumber:D4}";
-}
+const string AuthCookieName = "rapidq_auth";
 
 var builder = WebApplication.CreateBuilder(args);
-
 var portEnv = Environment.GetEnvironmentVariable("PORT");
 var listenPort = !string.IsNullOrWhiteSpace(portEnv) ? portEnv : "8080";
 builder.WebHost.UseUrls($"http://0.0.0.0:{listenPort}");
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-var dbPath = !string.IsNullOrWhiteSpace(connectionString)
-    ? connectionString
-    : $"Data Source={DatabasePathProvider.ResolveDatabasePath(builder.Environment.ContentRootPath)}";
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
+{
+    throw new InvalidOperationException("Set Jwt__Key to a secret of at least 32 characters in the API environment.");
+}
 
-builder.Services.AddDbContext<QueueDbContext>(options =>
-    options.UseSqlite(dbPath));
-
-builder.Services.AddIdentity<IdentityUser, IdentityRole>()
-    .AddEntityFrameworkStores<QueueDbContext>()
-    .AddDefaultTokenProviders();
-
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "RapidQSecretSuperSecureKeyForJwtTokens2026RapidQ!";
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "RapidQApi";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "RapidQClient";
 
+builder.Services.AddHttpClient<CloudflareD1Client>();
+builder.Services.AddScoped<RapidQRepository>();
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -64,70 +43,49 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtAudience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
     };
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            if (string.IsNullOrWhiteSpace(context.Request.Headers.Authorization) &&
+                context.Request.Cookies.TryGetValue(AuthCookieName, out var token))
+            {
+                context.Token = token;
+            }
+
+            return Task.CompletedTask;
+        }
+    };
 });
 builder.Services.AddAuthorization();
-
 builder.Services.AddSignalR();
 builder.Services.AddOpenApi();
-
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
-    options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+    options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+        Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
     options.KnownNetworks.Clear();
     options.KnownProxies.Clear();
 });
-
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowClient", policy =>
-    {
-        policy.SetIsOriginAllowed(_ => true)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
-    });
+    options.AddPolicy("AllowClient", policy => policy.SetIsOriginAllowed(_ => true)
+        .AllowAnyHeader().AllowAnyMethod().AllowCredentials());
 });
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
+if (app.Environment.IsProduction())
 {
-    var db = scope.ServiceProvider.GetRequiredService<QueueDbContext>();
-    db.Database.EnsureCreated();
-    SeedData.Initialize(db);
-
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
-
-    var roles = new[] { "Admin", "Staff", "Customer" };
-    foreach (var role in roles)
+    using var scope = app.Services.CreateScope();
+    var d1 = scope.ServiceProvider.GetRequiredService<CloudflareD1Client>();
+    await d1.QueryAsync<HealthRow>("SELECT 1 AS Value");
+    var adminEmail = app.Configuration["BootstrapAdmin:Email"];
+    var adminPassword = app.Configuration["BootstrapAdmin:Password"];
+    if (!string.IsNullOrWhiteSpace(adminEmail) && !string.IsNullOrWhiteSpace(adminPassword))
     {
-        if (!await roleManager.RoleExistsAsync(role))
-        {
-            await roleManager.CreateAsync(new IdentityRole(role));
-        }
-    }
-
-    var adminEmail = "admin@rapidq.local";
-    if (await userManager.FindByEmailAsync(adminEmail) == null)
-    {
-        var adminUser = new IdentityUser { UserName = adminEmail, Email = adminEmail };
-        var result = await userManager.CreateAsync(adminUser, "Admin123!");
-        if (result.Succeeded)
-        {
-            await userManager.AddToRoleAsync(adminUser, "Admin");
-        }
-    }
-
-    var staffEmail = "staff@rapidq.local";
-    if (await userManager.FindByEmailAsync(staffEmail) == null)
-    {
-        var staffUser = new IdentityUser { UserName = staffEmail, Email = staffEmail };
-        var result = await userManager.CreateAsync(staffUser, "Staff123!");
-        if (result.Succeeded)
-        {
-            await userManager.AddToRoleAsync(staffUser, "Staff");
-        }
+        await scope.ServiceProvider.GetRequiredService<RapidQRepository>()
+            .EnsureBootstrapAdminAsync(adminEmail, adminPassword);
     }
 }
 
@@ -140,7 +98,6 @@ app.UseForwardedHeaders();
 app.UseCors("AllowClient");
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.UseBlazorFrameworkFiles();
 app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions
@@ -156,423 +113,184 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
-app.MapGet("/api/health", () => new { Status = "ok", Timestamp = DateTime.UtcNow });
+app.MapGet("/api/health", async (CloudflareD1Client d1, CancellationToken ct) =>
+{
+    await d1.QueryAsync<HealthRow>("SELECT 1 AS Value", ct);
+    return Results.Ok(new { Status = "ok", Timestamp = DateTime.UtcNow });
+});
 
 var clientApi = app.MapGroup("/client");
 var staffApi = app.MapGroup("/staff").RequireAuthorization(policy => policy.RequireRole("Staff", "Admin"));
 var adminApi = app.MapGroup("/admin").RequireAuthorization(policy => policy.RequireRole("Admin"));
 var authApi = app.MapGroup("/auth");
 
-authApi.MapPost("/register", async (RegisterRequest req, UserManager<IdentityUser> userManager) =>
+authApi.MapPost("/register", async (RegisterRequest request, RapidQRepository repository, CancellationToken ct) =>
 {
-    var user = new IdentityUser { UserName = req.Email, Email = req.Email };
-    var result = await userManager.CreateAsync(user, req.Password);
-    
-    if (result.Succeeded)
-    {
-        await userManager.AddToRoleAsync(user, req.Role);
-        return Results.Ok();
-    }
-    
-    return Results.BadRequest(result.Errors);
+    var result = await repository.RegisterAsync(request, ct);
+    return result.Succeeded ? Results.Ok() : Results.BadRequest(result.Error);
 });
 
-authApi.MapPost("/login", async (LoginRequest req, UserManager<IdentityUser> userManager, IConfiguration config) =>
+authApi.MapPost("/login", async (LoginRequest request, RapidQRepository repository, IConfiguration config, HttpContext context, CancellationToken ct) =>
 {
-    var user = await userManager.FindByEmailAsync(req.Email);
-    if (user != null && await userManager.CheckPasswordAsync(user, req.Password))
+    var account = await repository.AuthenticateAsync(request.Email, request.Password, ct);
+    if (account is null) return Results.Unauthorized();
+
+    var claims = new List<Claim>
     {
-        var roles = await userManager.GetRolesAsync(user);
-        
-        var claims = new List<Claim>
-        {
-            new Claim(ClaimTypes.Name, user.Email!),
-            new Claim(ClaimTypes.Email, user.Email!)
-        };
-        
-        foreach (var role in roles)
-        {
-            claims.Add(new Claim(ClaimTypes.Role, role));
-        }
-        
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"] ?? jwtKey));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        
-        var token = new JwtSecurityToken(
-            issuer: config["Jwt:Issuer"] ?? jwtIssuer,
-            audience: config["Jwt:Audience"] ?? jwtAudience,
-            claims: claims,
-            expires: DateTime.UtcNow.AddDays(1),
-            signingCredentials: creds
-        );
-        
-        return Results.Ok(new AuthResponse
-        {
-            Token = new JwtSecurityTokenHandler().WriteToken(token),
-            Email = user.Email!,
-            Roles = roles
-        });
-    }
-    
-    return Results.Unauthorized();
-});
-
-clientApi.MapGet("/branches", async (QueueDbContext db) =>
-    await db.Branches.OrderBy(b => b.Name).Take(1).ToListAsync());
-
-clientApi.MapGet("/services", async (QueueDbContext db) =>
-    await db.Services.OrderBy(s => s.Name).ToListAsync());
-
-clientApi.MapPost("/tickets", async (CreateAppointmentRequest request, QueueDbContext db, IHubContext<QueueHub> hub) =>
-{
-    if (string.IsNullOrWhiteSpace(request.CustomerName))
-    {
-        return Results.BadRequest("Customer name is required.");
-    }
-
-    if (string.IsNullOrWhiteSpace(request.CustomerPhone))
-    {
-        return Results.BadRequest("Customer phone number is required.");
-    }
-
-    if (!PhoneNumberValidation.IsValid(request.CustomerPhone))
-    {
-        return Results.BadRequest("Customer phone number must contain exactly 10 digits.");
-    }
-
-    if (request.ServiceId <= 0)
-    {
-        return Results.BadRequest("A valid service is required.");
-    }
-
-    if (!AppointmentScheduling.IsBusinessDay(request.AppointmentDate))
-    {
-        return Results.BadRequest("Appointments are available Monday to Friday only.");
-    }
-
-    if (string.IsNullOrWhiteSpace(request.TimeSlot) || !AppointmentScheduling.IsWithinBusinessHours(request.TimeSlot))
-    {
-        return Results.BadRequest("Please select a preferred time between 09:00 and 17:00 during office hours.");
-    }
-
-    var service = await db.Services.FirstOrDefaultAsync(s => s.Id == request.ServiceId);
-    if (service is null)
-    {
-        return Results.BadRequest("Selected service does not exist.");
-    }
-
-    var branch = await db.Branches.OrderBy(b => b.Id).FirstOrDefaultAsync();
-    if (branch is null)
-    {
-        return Results.BadRequest("Branch configuration is missing.");
-    }
-
-    var lastQueue = await db.Appointments.MaxAsync(a => (int?)a.QueueNumber) ?? 0;
-    var queueNumber = lastQueue + 1;
-    var queueCode = GenerateQueueCode(queueNumber, service.ServiceCode);
-    var issuedAt = DateTime.UtcNow;
-    var expectedTime = AppointmentScheduling.GetExpectedAppointmentTime(request.AppointmentDate, request.TimeSlot) ?? request.AppointmentDate.Date.AddHours(9);
-
-    var appointment = new Appointment
-    {
-        CustomerName = request.CustomerName,
-        CustomerEmail = request.CustomerEmail,
-        CustomerPhone = request.CustomerPhone,
-        ServiceId = request.ServiceId,
-        BranchId = branch.Id,
-        AppointmentDate = request.AppointmentDate,
-        TimeSlot = string.IsNullOrWhiteSpace(request.TimeSlot) ? "Walk-in" : request.TimeSlot,
-        QueueNumber = queueNumber,
-        QueueCode = queueCode,
-        Status = AppointmentStatus.Waiting,
-        CreatedAt = issuedAt
+        new(ClaimTypes.Name, account.Email),
+        new(ClaimTypes.Email, account.Email)
     };
+    claims.AddRange(account.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-    db.Appointments.Add(appointment);
-    await db.SaveChangesAsync();
-    await hub.Clients.All.SendAsync("QueueUpdated");
+    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]!));
+    var token = new JwtSecurityToken(
+        issuer: config["Jwt:Issuer"] ?? "RapidQApi",
+        audience: config["Jwt:Audience"] ?? "RapidQClient",
+        claims: claims,
+        expires: DateTime.UtcNow.AddDays(1),
+        signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256));
+    var tokenValue = new JwtSecurityTokenHandler().WriteToken(token);
 
+    context.Response.Cookies.Append(AuthCookieName, tokenValue, new CookieOptions
+    {
+        HttpOnly = true,
+        Secure = context.Request.IsHttps,
+        SameSite = SameSiteMode.Lax,
+        Path = "/",
+        Expires = DateTimeOffset.UtcNow.AddDays(1)
+    });
+
+    return Results.Ok(new AuthResponse { Token = string.Empty, Email = account.Email, Roles = account.Roles.ToList() });
+});
+
+authApi.MapGet("/me", (ClaimsPrincipal user) =>
+{
+    if (user.Identity?.IsAuthenticated != true) return Results.Unauthorized();
+    return Results.Ok(new CurrentUserResponse
+    {
+        Email = user.FindFirstValue(ClaimTypes.Email) ?? user.Identity.Name ?? string.Empty,
+        Roles = user.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToList()
+    });
+});
+
+authApi.MapPost("/logout", (HttpContext context) =>
+{
+    context.Response.Cookies.Delete(AuthCookieName, new CookieOptions
+    {
+        HttpOnly = true,
+        Secure = context.Request.IsHttps,
+        SameSite = SameSiteMode.Lax,
+        Path = "/"
+    });
+    return Results.NoContent();
+});
+
+clientApi.MapGet("/branches", (RapidQRepository repository, CancellationToken ct) => repository.GetBranchesAsync(ct));
+clientApi.MapGet("/services", (RapidQRepository repository, CancellationToken ct) => repository.GetServicesAsync(ct));
+
+clientApi.MapPost("/tickets", async (CreateAppointmentRequest request, RapidQRepository repository, IHubContext<QueueHub> hub, CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request.CustomerName)) return Results.BadRequest("Customer name is required.");
+    if (!PhoneNumberValidation.IsValid(request.CustomerPhone)) return Results.BadRequest("Customer phone number must contain exactly 10 digits.");
+    if (request.ServiceId <= 0) return Results.BadRequest("A valid service is required.");
+    if (!AppointmentScheduling.IsBusinessDay(request.AppointmentDate)) return Results.BadRequest("Appointments are available Monday to Friday only.");
+    if (string.IsNullOrWhiteSpace(request.TimeSlot) || !AppointmentScheduling.IsWithinBusinessHours(request.TimeSlot))
+        return Results.BadRequest("Please select a preferred time between 09:00 and 17:00 during office hours.");
+
+    var (ticket, service, branch) = await repository.CreateTicketAsync(request, ct);
+    if (service is null) return Results.BadRequest("Selected service does not exist.");
+    if (branch is null) return Results.BadRequest("Branch configuration is missing.");
+    if (ticket is null) return Results.Conflict("A ticket could not be allocated. Please try again.");
+
+    await hub.Clients.All.SendAsync("QueueUpdated", cancellationToken: ct);
+    var expectedTime = AppointmentScheduling.GetExpectedAppointmentTime(request.AppointmentDate, request.TimeSlot)
+        ?? request.AppointmentDate.Date.AddHours(9);
     return Results.Ok(new
     {
-        appointment.Id,
-        appointment.QueueNumber,
-        appointment.QueueCode,
-        appointment.Status,
+        ticket.Id,
+        ticket.QueueNumber,
+        ticket.QueueCode,
+        Status = (AppointmentStatus)ticket.Status,
         BranchName = branch.Name,
         ServiceName = service.Name,
         ServiceCode = service.ServiceCode,
-        TimeSlot = appointment.TimeSlot,
+        TimeSlot = request.TimeSlot,
         ExpectedTime = expectedTime,
-        IssuedAt = issuedAt
+        IssuedAt = ticket.CreatedAt
     });
 });
 
-clientApi.MapGet("/track/{queueCode}", async (string queueCode, QueueDbContext db) =>
+clientApi.MapGet("/track/{queueCode}", async (string queueCode, RapidQRepository repository, CancellationToken ct) =>
 {
-    var appointment = await db.Appointments
-        .Include(a => a.Service)
-        .FirstOrDefaultAsync(a => a.QueueCode == queueCode);
+    var ticket = await repository.TrackAsync(queueCode, ct);
+    return ticket is null ? Results.NotFound() : Results.Ok(ticket);
+});
 
-    if (appointment is null) return Results.NotFound();
+staffApi.MapGet("/queue", (RapidQRepository repository, CancellationToken ct) => repository.GetQueueAsync(ct));
+staffApi.MapGet("/dashboard", (RapidQRepository repository, CancellationToken ct) => repository.GetDashboardAsync(ct));
+staffApi.MapGet("/analytics", (RapidQRepository repository, CancellationToken ct) => repository.GetStaffAnalyticsAsync(ct));
+staffApi.MapGet("/history", (RapidQRepository repository, CancellationToken ct) => repository.GetHistoryAsync(ct));
 
-    var peopleAhead = await db.Appointments.CountAsync(
-        QueuePositionCalculator.PeopleAheadPredicate(appointment));
+MapTicketAction("call");
+MapTicketAction("serve");
+MapTicketAction("skip");
+MapTicketAction("recall");
 
-    return Results.Ok(new TrackResponse
+void MapTicketAction(string action)
+{
+    staffApi.MapPost($"/queue/{{appointmentId:int}}/{action}", async (int appointmentId, RapidQRepository repository, IHubContext<QueueHub> hub, CancellationToken ct) =>
     {
-        QueueCode = appointment.QueueCode,
-        Status = appointment.Status,
-        ServiceName = appointment.Service?.Name ?? string.Empty,
-        ExpectedTime = appointment.AppointmentDate,
-        PeopleAhead = peopleAhead
+        var ticket = await repository.AdvanceTicketAsync(appointmentId, action, ct);
+        if (ticket is null)
+        {
+            return await repository.TicketExistsAsync(appointmentId, ct)
+                ? Results.Conflict("The ticket status changed or this action is not valid for its current status.")
+                : Results.NotFound();
+        }
+
+        await hub.Clients.All.SendAsync("QueueUpdated", cancellationToken: ct);
+        return Results.Ok(ticket);
     });
-});
-
-staffApi.MapGet("/queue", async (QueueDbContext db) =>
-    await db.Appointments
-        .Include(a => a.Service)
-        .Include(a => a.Branch)
-        .Where(a => a.Status != AppointmentStatus.Served && a.Status != AppointmentStatus.Missed)
-        .OrderBy(a => a.QueueNumber)
-        .Select(a => new QueueViewItem
-        {
-            Id = a.Id,
-            QueueNumber = a.QueueNumber,
-            QueueCode = a.QueueCode,
-            CustomerName = a.CustomerName,
-            CustomerEmail = a.CustomerEmail,
-            CustomerPhone = a.CustomerPhone,
-            ServiceName = a.Service!.Name,
-            BranchName = a.Branch!.Name,
-            TimeSlot = a.TimeSlot,
-            AppointmentDate = a.AppointmentDate,
-            Status = a.Status,
-            CreatedAt = a.CreatedAt,
-            CalledAt = a.CalledAt
-        })
-        .ToListAsync());
-
-staffApi.MapGet("/dashboard", async (QueueDbContext db) =>
-{
-    var appointments = await db.Appointments.ToListAsync();
-    var activeQueue = appointments.Count(a => a.Status != AppointmentStatus.Served && a.Status != AppointmentStatus.Missed);
-
-    return new DashboardSummary
-    {
-        TotalAppointments = appointments.Count,
-        ActiveQueue = activeQueue,
-        StaffCallsToday = appointments.Count(a => a.Status == AppointmentStatus.Called || a.Status == AppointmentStatus.Serving),
-        ServicesAvailable = await db.Services.CountAsync(),
-        AverageWaitMinutes = activeQueue == 0 ? 0 : Math.Max(5, activeQueue * 7)
-    };
-});
-
-staffApi.MapGet("/analytics", async (QueueDbContext db) =>
-{
-    var appointments = await db.Appointments.Include(a => a.Service).ToListAsync();
-    var today = DateTime.UtcNow.Date;
-    var todayAppts = appointments.Where(a => a.CreatedAt.Date == today).ToList();
-    var activeQueue = appointments.Count(a => a.Status != AppointmentStatus.Served && a.Status != AppointmentStatus.Missed);
-    var servedToday = todayAppts.Count(a => a.Status == AppointmentStatus.Served);
-    var missedToday = todayAppts.Count(a => a.Status == AppointmentStatus.Missed);
-
-    var distribution = appointments
-        .Where(a => a.Service != null)
-        .GroupBy(a => a.Service!.Name)
-        .Select(g => new ServiceDistributionItem { ServiceName = g.Key, Count = g.Count() })
-        .OrderByDescending(x => x.Count)
-        .ToList();
-
-    var statusBreakdown = new
-    {
-        Waiting = appointments.Count(a => a.Status == AppointmentStatus.Waiting),
-        Called = appointments.Count(a => a.Status == AppointmentStatus.Called),
-        Serving = appointments.Count(a => a.Status == AppointmentStatus.Serving),
-        ServedToday = servedToday,
-        MissedToday = missedToday
-    };
-
-    return new
-    {
-        Summary = new DashboardSummary
-        {
-            TotalAppointments = appointments.Count,
-            ActiveQueue = activeQueue,
-            StaffCallsToday = appointments.Count(a => a.Status == AppointmentStatus.Called || a.Status == AppointmentStatus.Serving),
-            ServicesAvailable = await db.Services.CountAsync(),
-            AverageWaitMinutes = activeQueue == 0 ? 0 : Math.Max(5, activeQueue * 7)
-        },
-        ServiceDistribution = distribution,
-        StatusBreakdown = statusBreakdown
-    };
-});
-
-staffApi.MapGet("/history", async (QueueDbContext db) =>
-{
-    var history = await db.Appointments
-        .Include(a => a.Service)
-        .Include(a => a.Branch)
-        .Where(a => a.Status == AppointmentStatus.Served || a.Status == AppointmentStatus.Missed)
-        .OrderByDescending(a => a.ServedAt ?? a.CreatedAt)
-        .ToListAsync();
-
-    return history.Select(a => new AppointmentHistoryItem
-    {
-        Id = a.Id,
-        CustomerName = a.CustomerName,
-        CustomerEmail = a.CustomerEmail,
-        CustomerPhone = a.CustomerPhone,
-        ServiceName = a.Service?.Name ?? "Unknown service",
-        ServiceCode = a.Service?.ServiceCode ?? "—",
-        BranchName = a.Branch?.Name ?? "Main Branch",
-        QueueCode = a.QueueCode,
-        AppointmentDate = a.AppointmentDate,
-        TimeSlot = a.TimeSlot,
-        CreatedAt = a.CreatedAt,
-        ServedAt = a.ServedAt,
-        ServiceDurationMinutes = a.CalledAt.HasValue && a.ServedAt.HasValue
-            ? (int)Math.Max(0, (a.ServedAt.Value - a.CalledAt.Value).TotalMinutes)
-            : null,
-        Status = a.Status
-    }).ToList();
-});
-
-staffApi.MapPost("/queue/{appointmentId:int}/call", async (int appointmentId, QueueDbContext db, IHubContext<QueueHub> hub) =>
-{
-    var appointment = await db.Appointments.FirstOrDefaultAsync(a => a.Id == appointmentId);
-    if (appointment is null)
-    {
-        return Results.NotFound();
-    }
-
-    appointment.Status = AppointmentStatus.Called;
-    appointment.CalledAt ??= DateTime.UtcNow;
-    await db.SaveChangesAsync();
-    await hub.Clients.All.SendAsync("QueueUpdated");
-    return Results.Ok(appointment);
-});
-
-staffApi.MapPost("/queue/{appointmentId:int}/serve", async (int appointmentId, QueueDbContext db, IHubContext<QueueHub> hub) =>
-{
-    var appointment = await db.Appointments.FirstOrDefaultAsync(a => a.Id == appointmentId);
-    if (appointment is null)
-    {
-        return Results.NotFound();
-    }
-
-    appointment.Status = AppointmentStatus.Served;
-    appointment.ServedAt ??= DateTime.UtcNow;
-    await db.SaveChangesAsync();
-    await hub.Clients.All.SendAsync("QueueUpdated");
-    return Results.Ok(appointment);
-});
-
-staffApi.MapPost("/queue/{appointmentId:int}/skip", async (int appointmentId, QueueDbContext db, IHubContext<QueueHub> hub) =>
-{
-    var appointment = await db.Appointments.FirstOrDefaultAsync(a => a.Id == appointmentId);
-    if (appointment is null)
-    {
-        return Results.NotFound();
-    }
-
-    appointment.Status = AppointmentStatus.Missed;
-    await db.SaveChangesAsync();
-    await hub.Clients.All.SendAsync("QueueUpdated");
-    return Results.Ok(appointment);
-});
-
-staffApi.MapPost("/queue/{appointmentId:int}/recall", async (int appointmentId, QueueDbContext db, IHubContext<QueueHub> hub) =>
-{
-    var appointment = await db.Appointments.FirstOrDefaultAsync(a => a.Id == appointmentId);
-    if (appointment is null)
-    {
-        return Results.NotFound();
-    }
-
-    appointment.Status = AppointmentStatus.Waiting;
-    appointment.CalledAt = null;
-    await db.SaveChangesAsync();
-    await hub.Clients.All.SendAsync("QueueUpdated");
-    return Results.Ok(appointment);
-});
+}
 
 app.MapHub<QueueHub>("/queueHub");
 
-adminApi.MapGet("/analytics", async (QueueDbContext db) =>
+adminApi.MapGet("/analytics", (RapidQRepository repository, CancellationToken ct) => repository.GetAdminAnalyticsAsync(ct));
+adminApi.MapGet("/services", (RapidQRepository repository, CancellationToken ct) => repository.AdminServicesAsync(ct));
+adminApi.MapPost("/services", async (ServiceItem service, RapidQRepository repository, CancellationToken ct) =>
 {
-    var appointments = await db.Appointments.Include(a => a.Service).ToListAsync();
-    var activeQueue = appointments.Count(a => a.Status != AppointmentStatus.Served && a.Status != AppointmentStatus.Missed);
-
-    var distribution = appointments
-        .Where(a => a.Service != null)
-        .GroupBy(a => a.Service!.Name)
-        .Select(g => new ServiceDistributionItem { ServiceName = g.Key, Count = g.Count() })
-        .ToList();
-
-    return new AdminAnalyticsResponse
-    {
-        Summary = new DashboardSummary
-        {
-            TotalAppointments = appointments.Count,
-            ActiveQueue = activeQueue,
-            StaffCallsToday = appointments.Count(a => a.Status == AppointmentStatus.Called || a.Status == AppointmentStatus.Serving),
-            ServicesAvailable = await db.Services.CountAsync(),
-            AverageWaitMinutes = activeQueue == 0 ? 0 : Math.Max(5, activeQueue * 7)
-        },
-        ServiceDistribution = distribution
-    };
+    var id = await repository.AddServiceAsync(service, ct);
+    if (id is null) return Results.BadRequest();
+    service.Id = id.Value;
+    return Results.Created($"/admin/services/{id}", service);
 });
-
-adminApi.MapGet("/services", async (QueueDbContext db) => await db.Services.ToListAsync());
-adminApi.MapPost("/services", async (ServiceItem service, QueueDbContext db) =>
+adminApi.MapPut("/services/{id:int}", async (int id, ServiceItem service, RapidQRepository repository, CancellationToken ct) =>
 {
-    db.Services.Add(service);
-    await db.SaveChangesAsync();
-    return Results.Created($"/admin/services/{service.Id}", service);
+    var result = await repository.UpdateServiceAsync(id, service, ct);
+    return result.Changes == 0 ? Results.NotFound() : Results.NoContent();
 });
-adminApi.MapPut("/services/{id:int}", async (int id, ServiceItem service, QueueDbContext db) =>
+adminApi.MapDelete("/services/{id:int}", async (int id, RapidQRepository repository, CancellationToken ct) =>
 {
-    var existing = await db.Services.FindAsync(id);
-    if (existing is null) return Results.NotFound();
-    existing.Name = service.Name;
-    existing.ServiceCode = service.ServiceCode;
-    existing.Description = service.Description;
-    existing.BranchId = service.BranchId;
-    await db.SaveChangesAsync();
-    return Results.NoContent();
+    var result = await repository.DeleteServiceAsync(id, ct);
+    return result.Changes == 0 ? Results.NotFound() : Results.NoContent();
 });
-adminApi.MapDelete("/services/{id:int}", async (int id, QueueDbContext db) =>
+adminApi.MapGet("/branches", (RapidQRepository repository, CancellationToken ct) => repository.GetAllBranchesAsync(ct));
+adminApi.MapPost("/branches", async (Branch branch, RapidQRepository repository, CancellationToken ct) =>
 {
-    var existing = await db.Services.FindAsync(id);
-    if (existing is null) return Results.NotFound();
-    db.Services.Remove(existing);
-    await db.SaveChangesAsync();
-    return Results.NoContent();
+    var id = await repository.AddBranchAsync(branch, ct);
+    if (id is null) return Results.BadRequest();
+    branch.Id = id.Value;
+    return Results.Created($"/admin/branches/{id}", branch);
 });
-
-adminApi.MapGet("/branches", async (QueueDbContext db) => await db.Branches.ToListAsync());
-adminApi.MapPost("/branches", async (Branch branch, QueueDbContext db) =>
+adminApi.MapPut("/branches/{id:int}", async (int id, Branch branch, RapidQRepository repository, CancellationToken ct) =>
 {
-    db.Branches.Add(branch);
-    await db.SaveChangesAsync();
-    return Results.Created($"/admin/branches/{branch.Id}", branch);
+    var result = await repository.UpdateBranchAsync(id, branch, ct);
+    return result.Changes == 0 ? Results.NotFound() : Results.NoContent();
 });
-adminApi.MapPut("/branches/{id:int}", async (int id, Branch branch, QueueDbContext db) =>
+adminApi.MapDelete("/branches/{id:int}", async (int id, RapidQRepository repository, CancellationToken ct) =>
 {
-    var existing = await db.Branches.FindAsync(id);
-    if (existing is null) return Results.NotFound();
-    existing.Name = branch.Name;
-    existing.Location = branch.Location;
-    await db.SaveChangesAsync();
-    return Results.NoContent();
-});
-adminApi.MapDelete("/branches/{id:int}", async (int id, QueueDbContext db) =>
-{
-    var existing = await db.Branches.FindAsync(id);
-    if (existing is null) return Results.NotFound();
-    db.Branches.Remove(existing);
-    await db.SaveChangesAsync();
-    return Results.NoContent();
+    var result = await repository.DeleteBranchAsync(id, ct);
+    return result.Changes == 0 ? Results.NotFound() : Results.NoContent();
 });
 
 app.MapFallbackToFile("index.html", new StaticFileOptions
@@ -587,4 +305,5 @@ app.MapFallbackToFile("index.html", new StaticFileOptions
 
 app.Run();
 
+public sealed class HealthRow { public int Value { get; set; } }
 public partial class Program { }

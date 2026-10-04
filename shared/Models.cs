@@ -121,6 +121,12 @@ public class AuthResponse
     public IList<string> Roles { get; set; } = new List<string>();
 }
 
+public class CurrentUserResponse
+{
+    public string Email { get; set; } = string.Empty;
+    public IList<string> Roles { get; set; } = new List<string>();
+}
+
 public class ServiceDistributionItem
 {
     public string ServiceName { get; set; } = string.Empty;

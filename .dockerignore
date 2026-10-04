@@ -6,5 +6,9 @@
 **/obj
 **/node_modules
 **/*.user
+**/.env
+**/.env.*
+!**/.env.example
+**/rapidq-import.sql
 *.db-shm
 *.db-wal

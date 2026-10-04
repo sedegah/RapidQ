@@ -1,0 +1,8 @@
+name = "rapidq-d1-migrations"
+compatibility_date = "2026-10-04"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "rapidq-prod"
+database_id = "27496309-4888-40ff-9ca8-b823f9b4dc66"
+migrations_dir = "api/migrations"

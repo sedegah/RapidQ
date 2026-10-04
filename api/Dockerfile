@@ -17,10 +17,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
 ENV ASPNETCORE_ENVIRONMENT=Production
-ENV RAPIDQ_DB_PATH=/var/data/QueueManagement.db
 
 COPY --from=build /app/publish .
-
-RUN mkdir -p /var/data
 
 ENTRYPOINT ["dotnet", "QueueManagement.Api.dll"]

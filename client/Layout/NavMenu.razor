@@ -1,6 +1,6 @@
 @using QueueManagement.Client.Auth
 @inject NavigationManager Navigation
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject HttpClient Http
 @inject AuthenticationStateProvider AuthStateProvider
 
 <div class="top-row ps-3 navbar navbar-dark">
@@ -48,7 +48,7 @@
 
     private async Task HandleSignOut()
     {
-        await LocalStorage.RemoveItemAsync("authToken");
+        await Http.PostAsync("auth/logout", null);
         ((JwtAuthenticationStateProvider)AuthStateProvider).MarkUserAsLoggedOut();
         Navigation.NavigateTo("/");
     }

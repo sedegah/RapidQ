@@ -37,6 +37,6 @@ The workspace also provides access to previous visits and missed tickets, making
 
 RapidQ brings the customer request and the service desk together in one easy-to-follow experience. The result is a more organized queue, clearer communication, and a more welcoming visit for everyone.
 
-![Customer ticket request and confirmation in RapidQ](image.png)
+![Customer ticket request and confirmation in RapidQ](shared\images\image.png)
 
-![Live service desk queue in RapidQ](image-1.png)
+![Live service desk queue in RapidQ](shared\images\image-1.png)

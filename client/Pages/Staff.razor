@@ -1,7 +1,7 @@
 @page "/staff"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Staff,Admin")]
 @inject HttpClient Http
 @inject NavigationManager Navigation
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @implements IDisposable
 @using System.Text.Json
 @using System.Text.Json.Serialization
@@ -247,13 +247,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var token = await LocalStorage.GetItemAsync<string>("authToken");
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            Navigation.NavigateTo("/", replace: true);
-            return;
-        }
-
         timerCancellation = new CancellationTokenSource();
         _ = StartTimerLoopAsync(timerCancellation.Token);
         await LoadAllAsync();
