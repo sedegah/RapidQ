@@ -19,7 +19,6 @@ public class AuthTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Register_ValidUser_ReturnsOk()
     {
-        // Arrange
         var uniqueEmail = $"testuser_{Guid.NewGuid():N}@rapidq.local";
         var request = new RegisterRequest
         {
@@ -28,17 +27,14 @@ public class AuthTests : IClassFixture<WebApplicationFactory<Program>>
             Role = "Customer"
         };
 
-        // Act
         var response = await _client.PostAsJsonAsync("/auth/register", request);
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
     public async Task Login_ValidUser_ReturnsToken()
     {
-        // Arrange
         var uniqueEmail = $"loginuser_{Guid.NewGuid():N}@rapidq.local";
         var registerRequest = new RegisterRequest
         {
@@ -54,11 +50,9 @@ public class AuthTests : IClassFixture<WebApplicationFactory<Program>>
             Password = "Password123!"
         };
 
-        // Act
         var response = await _client.PostAsJsonAsync("/auth/login", loginRequest);
         var authResponse = await response.Content.ReadFromJsonAsync<AuthResponse>();
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(authResponse);
         Assert.NotEmpty(authResponse.Token);
@@ -69,17 +63,14 @@ public class AuthTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Login_InvalidUser_ReturnsUnauthorized()
     {
-        // Arrange
         var loginRequest = new LoginRequest
         {
             Email = "nonexistent@rapidq.local",
             Password = "Password123!"
         };
 
-        // Act
         var response = await _client.PostAsJsonAsync("/auth/login", loginRequest);
 
-        // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }

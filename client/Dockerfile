@@ -1,12 +1,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Copy project files and restore
 COPY ["client/QueueManagement.Client.csproj", "client/"]
 COPY ["shared/QueueManagement.Shared.csproj", "shared/"]
 RUN dotnet restore "client/QueueManagement.Client.csproj"
 
-# Copy source and publish
 COPY client/ client/
 COPY shared/ shared/
 WORKDIR "/src/client"

@@ -1,9 +1,7 @@
-# Build outputs
 bin/
 obj/
 out/
 
-# Visual Studio / .NET
 .vs/
 .vscode/
 *.user
@@ -14,30 +12,23 @@ out/
 *.sqlite
 *.log
 
-# OS generated files
 .DS_Store
 Thumbs.db
 
-# NuGet packages
 packages/
 *.nupkg
 
-# Rider / JetBrains
 .idea/
 *.iml
 
-# Local app settings
 appsettings.Development.json
 
-# Generated static assets
 wwwroot/lib/
 command.md
 
-# Publish test output
 client-publish-test/
 test-publish/
 test-client-publish/
 
-# SQLite WAL files
 *.db-shm
 *.db-wal
