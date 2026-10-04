@@ -10,7 +10,7 @@ namespace QueueManagement.Tests;
 public class RapidQRepositoryTests
 {
     [Fact]
-    public async Task CreateTicket_UsesAtomicGlobalQueueNumberAndKeepsTicketCode()
+    public async Task CreateTicket_UsesAtomicPerDayNumberAndKeepsTicketCode()
     {
         var statements = new List<string>();
         var handler = new StubHandler(async request =>
@@ -40,6 +40,8 @@ public class RapidQRepositoryTests
         Assert.Equal("CA-0008", result.Ticket.QueueCode);
         var insert = Assert.Single(statements, sql => sql.Contains("INSERT INTO tickets", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("MAX(queue_number)", insert, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("substr(appointment_date, 1, 10) = ?", insert, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("branch_id = ?", insert, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("RETURNING", insert, StringComparison.OrdinalIgnoreCase);
     }
 

@@ -43,75 +43,104 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var item in history)
+                        @foreach (var dayGroup in GetHistoryByDate())
                         {
-                            <tr class="@(selectedItem?.Id == item.Id ? "selected-row" : string.Empty)" @onclick="() => SelectItem(item)">
-                                <td>@item.CustomerName</td>
-                                <td>@item.ServiceName</td>
-                                <td>@item.QueueCode</td>
-                                <td>@item.AppointmentDate.ToString("dd MMM yyyy")</td>
-                                <td>@item.TimeSlot</td>
-                                <td>@(item.ServiceDurationMinutes.HasValue ? $"{item.ServiceDurationMinutes} min" : "---")</td>
-                                <td>
-                                    <span class="status-badge status-@item.Status.ToString().ToLower()">@GetStatusLabel(item.Status)</span>
-                                </td>
-                            </tr>
+                            <tr class="history-date-row"><th colspan="7">@dayGroup.Key.ToString("dddd, dd MMMM yyyy")</th></tr>
+                            @foreach (var item in dayGroup)
+                            {
+                                <tr class="@(selectedItem?.Id == item.Id ? "selected-row" : string.Empty)" @onclick="() => SelectItem(item)">
+                                    <td>@item.CustomerName</td>
+                                    <td>@item.ServiceName</td>
+                                    <td>@item.QueueCode</td>
+                                    <td>@item.AppointmentDate.ToString("dd MMM yyyy")</td>
+                                    <td>@item.TimeSlot</td>
+                                    <td>@(item.ServiceDurationMinutes.HasValue ? $"{item.ServiceDurationMinutes} min" : "---")</td>
+                                    <td>
+                                        <span class="status-badge status-@item.Status.ToString().ToLower()">@GetStatusLabel(item.Status)</span>
+                                    </td>
+                                </tr>
+                                @if (selectedItem?.Id == item.Id)
+                                {
+                                    <tr class="history-detail-row">
+                                        <td colspan="7">
+                                            <div class="history-detail-dropdown">
+                                                <div class="history-detail-heading">
+                                                    <div>
+                                                        <span class="mini-label">Customer details</span>
+                                                        <h4>@item.CustomerName</h4>
+                                                    </div>
+                                                    <span class="status-badge status-@item.Status.ToString().ToLower()">@GetStatusLabel(item.Status)</span>
+                                                </div>
+                                                <dl class="history-details-grid">
+                                                    <div><dt>Queue</dt><dd>@item.QueueCode</dd></div>
+                                                    <div><dt>Service</dt><dd>@item.ServiceName (@item.ServiceCode)</dd></div>
+                                                    <div><dt>Branch</dt><dd>@item.BranchName</dd></div>
+                                                    <div><dt>Email</dt><dd>@(string.IsNullOrWhiteSpace(item.CustomerEmail) ? "—" : item.CustomerEmail)</dd></div>
+                                                    <div><dt>Phone</dt><dd>@item.CustomerPhone</dd></div>
+                                                    <div><dt>Date and time</dt><dd>@item.AppointmentDate.ToString("dd MMM yyyy") · @item.TimeSlot</dd></div>
+                                                    <div><dt>Duration</dt><dd>@(item.ServiceDurationMinutes.HasValue ? $"{item.ServiceDurationMinutes} minutes" : "—")</dd></div>
+                                                    <div><dt>Served</dt><dd>@(item.ServedAt.HasValue ? item.ServedAt.Value.ToString("dd MMM yyyy, HH:mm") : "—")</dd></div>
+                                                </dl>
+                                                @if (item.Status == AppointmentStatus.Missed || item.Status == AppointmentStatus.Served)
+                                                {
+                                                    <button class="btn btn-warning" @onclick:stopPropagation="true" @onclick="() => RecallQueue(item.Id)">Recall to Queue</button>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
                         }
                     </tbody>
                 </table>
             </div>
 
-            @if (selectedItem is not null)
-            {
-                <aside class="info-panel customer-info-panel">
-                    <div class="info-card-block">
-                        <span class="mini-label">Customer Details</span>
-                        <h4>@selectedItem.CustomerName</h4>
-                        <ul>
-                            <li><strong>Queue:</strong> @selectedItem.QueueCode</li>
-                            <li><strong>Service:</strong> @selectedItem.ServiceName</li>
-                            <li><strong>Code:</strong> @selectedItem.ServiceCode</li>
-                            <li><strong>Branch:</strong> @selectedItem.BranchName</li>
-                            <li><strong>Email:</strong> @selectedItem.CustomerEmail</li>
-                            <li><strong>Phone:</strong> @selectedItem.CustomerPhone</li>
-                            <li><strong>Date:</strong> @selectedItem.AppointmentDate.ToString("dd MMM yyyy")</li>
-                            <li><strong>Time:</strong> @selectedItem.TimeSlot</li>
-                            <li><strong>Duration:</strong> @(selectedItem.ServiceDurationMinutes.HasValue ? $"{selectedItem.ServiceDurationMinutes} minutes" : "---")</li>
-                            <li><strong>Status:</strong> @GetStatusLabel(selectedItem.Status)</li>
-                            <li><strong>Served:</strong> @(selectedItem.ServedAt.HasValue ? selectedItem.ServedAt.Value.ToString("dd MMM yyyy, HH:mm") : "---")</li>
-                        </ul>
-                        @if (selectedItem.Status == AppointmentStatus.Missed || selectedItem.Status == AppointmentStatus.Served)
-                        {
-                            <button class="btn btn-warning mt-3 w-100" @onclick="() => RecallQueue(selectedItem.Id)">Recall to Queue</button>
-                        }
-                    </div>
-                </aside>
-            }
         </div>
 
         <div class="mobile-history-list show-on-mobile hide-on-desktop">
-            @foreach (var item in history)
+            @foreach (var dayGroup in GetHistoryByDate())
             {
-                <div class="mobile-history-card @(selectedItem?.Id == item.Id ? "selected-card" : "")" @onclick="() => SelectItem(item)">
-                    <div class="mobile-history-header">
-                        <span class="mobile-history-code">@item.QueueCode</span>
-                        <div class="mobile-history-meta">
-                            <span class="status-badge status-@item.Status.ToString().ToLower()">@GetStatusLabel(item.Status)</span>
-                        </div>
-                    </div>
-                    <div class="mobile-history-info">
-                        <span class="mobile-cust-name">@item.CustomerName</span>
-                        <span class="mobile-svc-tag">@item.ServiceName</span>
-                    </div>
-                    <div class="mobile-history-footer">
-                        <span>@item.AppointmentDate.ToString("dd MMM yyyy")</span>
-                        <span>@(item.ServiceDurationMinutes.HasValue ? $"{item.ServiceDurationMinutes} min" : "---")</span>
-                    </div>
-                    @if (selectedItem?.Id == item.Id && (item.Status == AppointmentStatus.Missed || item.Status == AppointmentStatus.Served))
+                <section class="mobile-history-day">
+                    <h4 class="history-date-heading">@dayGroup.Key.ToString("dddd, dd MMMM yyyy")</h4>
+                    @foreach (var item in dayGroup)
                     {
-                        <button class="btn btn-warning w-100" style="margin-top:0.4rem;" @onclick:stopPropagation="true" @onclick="() => RecallQueue(item.Id)">Recall to Queue</button>
+                        <div class="mobile-history-card @(selectedItem?.Id == item.Id ? "selected-card" : "")" @onclick="() => SelectItem(item)">
+                            <div class="mobile-history-header">
+                                <span class="mobile-history-code">@item.QueueCode</span>
+                                <div class="mobile-history-meta">
+                                    <span class="status-badge status-@item.Status.ToString().ToLower()">@GetStatusLabel(item.Status)</span>
+                                </div>
+                            </div>
+                            <div class="mobile-history-info">
+                                <span class="mobile-cust-name">@item.CustomerName</span>
+                                <span class="mobile-svc-tag">@item.ServiceName</span>
+                            </div>
+                            <div class="mobile-history-footer">
+                                <span>@item.AppointmentDate.ToString("dd MMM yyyy")</span>
+                                <span>@(item.ServiceDurationMinutes.HasValue ? $"{item.ServiceDurationMinutes} min" : "---")</span>
+                            </div>
+                            @if (selectedItem?.Id == item.Id)
+                            {
+                                <div class="history-detail-dropdown mobile-history-details" @onclick:stopPropagation="true">
+                                    <dl class="history-details-grid">
+                                        <div><dt>Queue</dt><dd>@item.QueueCode</dd></div>
+                                        <div><dt>Service</dt><dd>@item.ServiceName (@item.ServiceCode)</dd></div>
+                                        <div><dt>Branch</dt><dd>@item.BranchName</dd></div>
+                                        <div><dt>Email</dt><dd>@(string.IsNullOrWhiteSpace(item.CustomerEmail) ? "—" : item.CustomerEmail)</dd></div>
+                                        <div><dt>Phone</dt><dd>@item.CustomerPhone</dd></div>
+                                        <div><dt>Date and time</dt><dd>@item.AppointmentDate.ToString("dd MMM yyyy") · @item.TimeSlot</dd></div>
+                                        <div><dt>Duration</dt><dd>@(item.ServiceDurationMinutes.HasValue ? $"{item.ServiceDurationMinutes} minutes" : "—")</dd></div>
+                                        <div><dt>Served</dt><dd>@(item.ServedAt.HasValue ? item.ServedAt.Value.ToString("dd MMM yyyy, HH:mm") : "—")</dd></div>
+                                    </dl>
+                                    @if (item.Status == AppointmentStatus.Missed || item.Status == AppointmentStatus.Served)
+                                    {
+                                        <button class="btn btn-warning w-100" @onclick="() => RecallQueue(item.Id)">Recall to Queue</button>
+                                    }
+                                </div>
+                            }
+                        </div>
                     }
-                </div>
+                </section>
             }
         </div>
     }
@@ -127,7 +156,6 @@
         try
         {
             history = await Http.GetFromJsonAsync<List<AppointmentHistoryItem>>("staff/history") ?? new();
-            selectedItem ??= history.FirstOrDefault();
         }
         finally
         {
@@ -137,8 +165,12 @@
 
     private void SelectItem(AppointmentHistoryItem item)
     {
-        selectedItem = item;
+        selectedItem = selectedItem?.Id == item.Id ? null : item;
     }
+
+    private IEnumerable<IGrouping<DateTime, AppointmentHistoryItem>> GetHistoryByDate() =>
+        history.GroupBy(item => item.AppointmentDate.Date)
+            .OrderByDescending(group => group.Key);
 
     private void BackToDesk()
     {
@@ -149,7 +181,7 @@
     {
         await Http.PostAsync($"staff/queue/{appointmentId}/recall", null);
         history = await Http.GetFromJsonAsync<List<AppointmentHistoryItem>>("staff/history") ?? new();
-        selectedItem = history.FirstOrDefault(h => h.Id == selectedItem?.Id) ?? history.FirstOrDefault();
+        selectedItem = null;
     }
 
     private static string GetStatusLabel(AppointmentStatus status)

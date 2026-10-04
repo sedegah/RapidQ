@@ -10,5 +10,6 @@
 **/.env.*
 !**/.env.example
 **/rapidq-import.sql
+**/rapidq-demo-transactions.sql
 *.db-shm
 *.db-wal

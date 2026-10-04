@@ -121,10 +121,11 @@ public sealed class RapidQRepository
         if (branch is null) return (null, service, null);
 
         var issuedAt = DateTime.UtcNow;
-        var date = request.AppointmentDate.ToString("O");
+        var date = request.AppointmentDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         var timeSlot = string.IsNullOrWhiteSpace(request.TimeSlot) ? "Walk-in" : request.TimeSlot;
         var tickets = await _d1.QueryAsync<QueueTicketRecord>(
-            "WITH next_number AS (SELECT COALESCE(MAX(queue_number), 0) + 1 AS value FROM tickets) " +
+            "WITH next_number AS (SELECT COALESCE(MAX(queue_number), 0) + 1 AS value FROM tickets " +
+            "WHERE branch_id = ? AND substr(appointment_date, 1, 10) = ?) " +
             "INSERT INTO tickets (customer_name, customer_email, customer_phone, service_id, branch_id, appointment_date, time_slot, queue_number, queue_code, status, created_at) " +
             "SELECT ?, ?, ?, s.id, b.id, ?, ?, n.value, " +
             "(CASE WHEN length(trim(s.service_code)) = 0 THEN 'GE' " +
@@ -132,7 +133,7 @@ public sealed class RapidQRepository
             "ELSE substr(replace(upper(trim(s.service_code)), '-', ''), 1, 2) END) || '-' || PRINTF('%04d', n.value), 0, ? " +
             "FROM services s JOIN branches b ON b.id = ? CROSS JOIN next_number n WHERE s.id = ? " +
             "RETURNING id AS Id, queue_number AS QueueNumber, queue_code AS QueueCode, status AS Status, created_at AS CreatedAt",
-            ct, request.CustomerName.Trim(), request.CustomerEmail.Trim(), request.CustomerPhone.Trim(), date, timeSlot, issuedAt.ToString("O"), branch.Id, service.Id);
+            ct, branch.Id, date, request.CustomerName.Trim(), request.CustomerEmail.Trim(), request.CustomerPhone.Trim(), date, timeSlot, issuedAt.ToString("O"), branch.Id, service.Id);
         return (tickets.FirstOrDefault(), service, branch);
     }
 

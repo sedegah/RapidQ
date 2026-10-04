@@ -40,3 +40,4 @@ api/.env
 api/.env.*
 !api/.env.example
 rapidq-import.sql
+rapidq-demo-transactions.sql
