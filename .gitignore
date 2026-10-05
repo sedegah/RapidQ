@@ -37,7 +37,5 @@ test-client-publish/
 *.db-wal
 .env
 .env.*
-!.env.example
 api/.env
 api/.env.*
-!api/.env.example
